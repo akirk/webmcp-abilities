@@ -1,0 +1,17 @@
+# Keep development-only files out of the archives GitHub generates for
+# "Download ZIP" and release tarballs. They stay in the repository.
+/.wordpress-assets  export-ignore
+/.github            export-ignore
+/tests              export-ignore
+/src                export-ignore
+/pnpm-lock.yaml     export-ignore
+/composer.lock      export-ignore
+/package.json       export-ignore
+/composer.json      export-ignore
+/tsconfig.json      export-ignore
+/webpack.config.js  export-ignore
+/phpcs.xml.dist     export-ignore
+/phpunit.xml        export-ignore
+/.wp-env.json       export-ignore
+/.gitattributes     export-ignore
+/.gitignore         export-ignore
