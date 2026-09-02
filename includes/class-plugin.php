@@ -100,8 +100,11 @@ class Plugin {
 			add_action( 'wp_abilities_api_init', [ $this->builtin_tools, 'register' ] );
 		}
 
-		// Enqueue front-end JS.
+		// Enqueue the bridge script, on the front end and in wp-admin. Admin
+		// screens are where a logged-in user has the capabilities that most
+		// abilities check for, so they are worth exposing too.
 		add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_frontend' ] );
+		add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_admin' ] );
 
 		// Admin page.
 		if ( is_admin() ) {
@@ -120,16 +123,37 @@ class Plugin {
 	}
 
 	/**
-	 * Enqueue the WebMCP Abilities front-end script.
+	 * Enqueue the bridge script on the front end.
 	 */
 	public function enqueue_frontend(): void {
+		$this->enqueue_script( 'front' );
+	}
+
+	/**
+	 * Enqueue the bridge script in wp-admin.
+	 */
+	public function enqueue_admin(): void {
+		$this->enqueue_script( 'admin' );
+	}
+
+	/**
+	 * Enqueue the WebMCP Abilities script.
+	 *
+	 * @param string $context Where it is being loaded: 'front' or 'admin'.
+	 */
+	private function enqueue_script( string $context ): void {
 		// Only load when enabled and on HTTPS.
 		if ( ! $this->settings->is_enabled() || ! is_ssl() ) {
 			return;
 		}
 
-		// Allow themes/plugins to suppress loading on specific pages.
-		if ( ! apply_filters( 'wmcp_should_enqueue', true ) ) {
+		/**
+		 * Filter whether to load the bridge script on this request.
+		 *
+		 * @param bool   $enqueue Whether to enqueue.
+		 * @param string $context 'front' on the front end, 'admin' in wp-admin.
+		 */
+		if ( ! apply_filters( 'wmcp_should_enqueue', true, $context ) ) {
 			return;
 		}
 

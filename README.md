@@ -62,7 +62,7 @@ WordPress Site                          AI Agent (Claude, ChatGPT, etc.)
 ```
 
 1. **Plugins register WordPress Abilities** — structured capabilities with labels, descriptions, JSON Schema inputs, permission callbacks, and execute callbacks.
-2. **This plugin bridges them to WebMCP** — the front-end script calls `document.modelContext.registerTool()` for each exposed ability.
+2. **This plugin bridges them to WebMCP** — the bridge script calls `document.modelContext.registerTool()` for each exposed ability. It loads on the front end and on wp-admin screens, where a logged-in user has the capabilities most abilities check for.
 3. **AI agents discover and call tools** — structured JSON in, structured JSON out. No DOM parsing. No screenshots.
 
 ---
@@ -216,8 +216,9 @@ add_filter( 'wmcp_rate_limit_window', fn() => 60 );   // window in seconds
 // Disable built-in tools
 add_filter( 'wmcp_include_builtin_tools', '__return_false' );
 
-// Conditionally load the bridge script
-add_filter( 'wmcp_should_enqueue', fn() => is_front_page() );
+// Conditionally load the bridge script. It loads on the front end and in
+// wp-admin; $context is 'front' or 'admin'.
+add_filter( 'wmcp_should_enqueue', fn( $enqueue, $context ) => 'admin' !== $context, 10, 2 );
 ```
 
 ---
