@@ -18,6 +18,9 @@ class Ability_Bridge {
 	/** Object cache group for the tools list. */
 	const CACHE_GROUP = 'wmcp_bridge';
 
+	/** Option holding the cache generation, bumped to invalidate the tools list. */
+	const CACHE_VERSION_OPTION = 'wmcp_bridge_cache_version';
+
 	/**
 	 * Plugin settings instance.
 	 *
@@ -42,7 +45,7 @@ class Ability_Bridge {
 	 */
 	public function get_tools_for_current_user(): array {
 		$user_id   = get_current_user_id();
-		$cache_key = "tools_{$user_id}";
+		$cache_key = 'tools_' . $user_id . '_v' . $this->cache_version();
 
 		$cached = wp_cache_get( $cache_key, self::CACHE_GROUP );
 		if ( false !== $cached ) {
@@ -247,10 +250,27 @@ class Ability_Bridge {
 	}
 
 	/**
+	 * The current cache generation, part of every tools cache key.
+	 */
+	private function cache_version(): int {
+		return (int) get_option( self::CACHE_VERSION_OPTION, 1 );
+	}
+
+	/**
 	 * Invalidate all cached tool lists.
-	 * Called when plugins activate or deactivate.
+	 * Called when plugins activate or deactivate, and when an admin changes
+	 * which tools are exposed.
+	 *
+	 * Bumping the generation is what actually invalidates: not every persistent
+	 * object cache drop-in supports flushing a group, and a stale tools list
+	 * would otherwise survive for an hour. The group flush is still attempted
+	 * where supported, so the superseded entries do not linger.
 	 */
 	public function invalidate_cache(): void {
-		wp_cache_flush_group( self::CACHE_GROUP );
+		update_option( self::CACHE_VERSION_OPTION, $this->cache_version() + 1, false );
+
+		if ( ! function_exists( 'wp_cache_supports' ) || wp_cache_supports( 'flush_group' ) ) {
+			wp_cache_flush_group( self::CACHE_GROUP );
+		}
 	}
 }

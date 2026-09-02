@@ -1,6 +1,6 @@
 {
   "name": "code-atlantic/webmcp-abilities",
-  "description": "Bridges WordPress Abilities to the WebMCP browser API (navigator.modelContext)",
+  "description": "Bridges WordPress Abilities to the WebMCP browser API (document.modelContext)",
   "type": "wordpress-plugin",
   "license": "GPL-2.0-or-later",
   "require": {

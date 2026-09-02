@@ -14,6 +14,7 @@ defined( 'WP_UNINSTALL_PLUGIN' ) || exit;
 delete_option( 'wmcp_enabled' );
 delete_option( 'wmcp_exposed_tools' );
 delete_option( 'wmcp_discovery_public' );
+delete_option( 'wmcp_bridge_cache_version' );
 
 // Remove transients (rate limit counters have a TTL so they expire naturally,
 // but we clean them up immediately on uninstall for tidiness).

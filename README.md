@@ -19,16 +19,16 @@ WebMCP Abilities connects the [WordPress Abilities API](https://developer.wordpr
 
 [![WebMCP Abilities Demo](https://img.youtube.com/vi/7A34ZNz2bMM/maxresdefault.jpg)](https://youtu.be/7A34ZNz2bMM)
 
-> Gemini 2.5 Flash discovering and calling WordPress tools via Chrome's `navigator.modelContext` API on a live production site.
+> Gemini 2.5 Flash discovering and calling WordPress tools via Chrome's `document.modelContext` API on a live production site.
 
 ---
 
 ## What Is WebMCP?
 
-[WebMCP](https://webmachinelearning.github.io/webmcp/) is a browser API (`navigator.modelContext`) that lets websites register structured tools directly discoverable by AI agents. Instead of agents clicking through UIs, taking screenshots, and guessing at intent, they get:
+[WebMCP](https://webmachinelearning.github.io/webmcp/) is a browser API (`document.modelContext`) that lets websites register structured tools directly discoverable by AI agents. Instead of agents clicking through UIs, taking screenshots, and guessing at intent, they get:
 
 - **Structured tool definitions** with JSON Schema inputs
-- **Direct execution** via `navigator.modelContext.registerTool()`
+- **Direct execution** via `document.modelContext.registerTool()`
 - **Security enforced by the browser** — same-origin, HTTPS-only
 - **~98% task accuracy** vs ~45% for vision-based approaches
 
@@ -48,7 +48,7 @@ WordPress Site                          AI Agent (Claude, ChatGPT, etc.)
 ─────────────────                       ──────────────────────────────────
 ┌──────────────────────┐                ┌────────────────────────────────┐
 │  WP Abilities API    │                │  Chrome 146+ browser           │
-│  (register tools     │──── bridge ───▶│  navigator.modelContext        │
+│  (register tools     │──── bridge ───▶│  document.modelContext         │
 │   with schema +      │                │  .registerTool(...)            │
 │   permissions)       │                └────────────────────────────────┘
 └──────────────────────┘                          │
@@ -62,7 +62,7 @@ WordPress Site                          AI Agent (Claude, ChatGPT, etc.)
 ```
 
 1. **Plugins register WordPress Abilities** — structured capabilities with labels, descriptions, JSON Schema inputs, permission callbacks, and execute callbacks.
-2. **This plugin bridges them to WebMCP** — the front-end script calls `navigator.modelContext.registerTool()` for each exposed ability.
+2. **This plugin bridges them to WebMCP** — the front-end script calls `document.modelContext.registerTool()` for each exposed ability.
 3. **AI agents discover and call tools** — structured JSON in, structured JSON out. No DOM parsing. No screenshots.
 
 ---
@@ -271,7 +271,7 @@ webmcp-abilities/
 │   ├── class-rate-limiter.php # Transient-based rate limiting
 │   └── class-admin-page.php   # Settings UI
 ├── src/
-│   ├── webmcp-abilities.ts       # TypeScript source (navigator.modelContext bridge)
+│   ├── webmcp-abilities.ts       # TypeScript source (document.modelContext bridge)
 │   └── types/webmcp.d.ts             # WebMCP type declarations
 ├── dist/                             # Built output (@wordpress/scripts + webpack)
 │   ├── webmcp-abilities.js       # Compiled bundle

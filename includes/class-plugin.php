@@ -112,6 +112,11 @@ class Plugin {
 		// Cache invalidation when plugins activate/deactivate.
 		add_action( 'activate_plugin', [ $this->bridge, 'invalidate_cache' ] );
 		add_action( 'deactivate_plugin', [ $this->bridge, 'invalidate_cache' ] );
+
+		// Cache invalidation when an admin changes which tools are exposed.
+		// Both hooks are needed: the first save adds the option, later ones update it.
+		add_action( 'add_option_' . Settings::OPTION_EXPOSED_TOOLS, [ $this->bridge, 'invalidate_cache' ] );
+		add_action( 'update_option_' . Settings::OPTION_EXPOSED_TOOLS, [ $this->bridge, 'invalidate_cache' ] );
 	}
 
 	/**
@@ -153,7 +158,27 @@ class Plugin {
 				'executeEndpoint' => rest_url( 'webmcp/v1/execute/' ),
 				'nonceEndpoint'   => rest_url( 'webmcp/v1/nonce' ),
 				'nonce'           => wp_create_nonce( 'wmcp_execute' ),
+				// Core discards the auth cookie on a REST request that carries
+				// no 'wp_rest' nonce, so every request needs this one too.
+				'restNonce'       => wp_create_nonce( 'wp_rest' ),
+				'debug'           => $this->is_debug(),
 			]
 		);
+	}
+
+	/**
+	 * Whether the front-end script should log what it is doing to the console.
+	 *
+	 * Off for visitors by default. Follows WP_DEBUG, and can be forced either
+	 * way with the filter — or per-browser, without touching the server, with
+	 * localStorage.setItem( 'wmcp_debug', '1' ).
+	 */
+	private function is_debug(): bool {
+		/**
+		 * Filter whether the WebMCP front-end script logs to the browser console.
+		 *
+		 * @param bool $debug Defaults to WP_DEBUG.
+		 */
+		return (bool) apply_filters( 'wmcp_debug', defined( 'WP_DEBUG' ) && WP_DEBUG );
 	}
 }

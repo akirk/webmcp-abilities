@@ -26,7 +26,7 @@ When enabled, the plugin:
 
 1. Registers a lightweight JavaScript bridge on your site's front end
 2. Fetches all registered WordPress Abilities visible to the current user
-3. Exposes them to the browser's AI agent via `navigator.modelContext.registerTool()`
+3. Exposes them to the browser's AI agent via `document.modelContext.registerTool()`
 4. Agents can then invoke tools, which execute server-side via a secure REST API
 
 = Built-in Tools =

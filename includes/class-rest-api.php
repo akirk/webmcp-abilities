@@ -163,6 +163,9 @@ class REST_API {
 			[
 				'tools' => $tools,
 				'nonce' => wp_create_nonce( 'wmcp_execute' ),
+				// Core requires a 'wp_rest' nonce before it will honour the auth
+				// cookie on a REST request — without one it zeroes the user.
+				'restNonce' => wp_create_nonce( 'wp_rest' ),
 			],
 			200
 		);
@@ -278,7 +281,13 @@ class REST_API {
 		// Read-only tools (wmcp_read_only) and unauthenticated requests skip this.
 		$is_read_only = (bool) $ability->get_meta_item( 'wmcp_read_only', false );
 		if ( is_user_logged_in() && ! $is_read_only ) {
-			$nonce = $request->get_header( 'x_wp_nonce' );
+			// Sent as X-WMCP-Nonce: X-WP-Nonce belongs to core, which needs a
+			// 'wp_rest' nonce there to accept the auth cookie at all. Older
+			// scripts sent ours in X-WP-Nonce, so that is still accepted.
+			$nonce = $request->get_header( 'x_wmcp_nonce' );
+			if ( ! $nonce ) {
+				$nonce = $request->get_header( 'x_wp_nonce' );
+			}
 			if ( ! $nonce || ! wp_verify_nonce( $nonce, 'wmcp_execute' ) ) {
 				return new \WP_REST_Response(
 					[
@@ -374,13 +383,18 @@ class REST_API {
 	// =========================================================================
 
 	/**
-	 * Return a fresh nonce for the execution endpoint.
+	 * Return a fresh nonce for the execution endpoint, plus a core 'wp_rest'
+	 * nonce. Both are minted for the current user, so an unauthenticated
+	 * request gets nonces that will not authenticate anyone.
 	 *
 	 * @param \WP_REST_Request $request Request object.
 	 */
 	public function get_nonce( \WP_REST_Request $request ): \WP_REST_Response { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.Found -- Required by REST API signature.
 		return new \WP_REST_Response(
-			[ 'nonce' => wp_create_nonce( 'wmcp_execute' ) ],
+			[
+				'nonce'     => wp_create_nonce( 'wmcp_execute' ),
+				'restNonce' => wp_create_nonce( 'wp_rest' ),
+			],
 			200
 		);
 	}
