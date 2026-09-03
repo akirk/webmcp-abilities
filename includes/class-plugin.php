@@ -116,10 +116,26 @@ class Plugin {
 		add_action( 'activate_plugin', [ $this->bridge, 'invalidate_cache' ] );
 		add_action( 'deactivate_plugin', [ $this->bridge, 'invalidate_cache' ] );
 
-		// Cache invalidation when an admin changes which tools are exposed.
+		// Cache invalidation when an admin changes which tools are advertised.
 		// Both hooks are needed: the first save adds the option, later ones update it.
-		add_action( 'add_option_' . Settings::OPTION_EXPOSED_TOOLS, [ $this->bridge, 'invalidate_cache' ] );
-		add_action( 'update_option_' . Settings::OPTION_EXPOSED_TOOLS, [ $this->bridge, 'invalidate_cache' ] );
+		add_action( 'add_option_' . Settings::OPTION_TOOL_VISIBILITY, [ $this->bridge, 'invalidate_cache' ] );
+		add_action( 'update_option_' . Settings::OPTION_TOOL_VISIBILITY, [ $this->bridge, 'invalidate_cache' ] );
+
+		// Translate a pre-0.7 allowlist into visibility overrides, once.
+		// admin_init rather than an activation hook: abilities are registered by
+		// then, and an upgrade in place never runs activation.
+		add_action( 'admin_init', [ $this, 'migrate_exposed_tools' ], 5 );
+	}
+
+	/**
+	 * Run the one-off conversion of the pre-0.7 exposed-tools allowlist.
+	 */
+	public function migrate_exposed_tools(): void {
+		$registered = function_exists( 'wp_get_abilities' )
+			? array_keys( wp_get_abilities() )
+			: [];
+
+		$this->settings->migrate_exposed_tools( $registered );
 	}
 
 	/**

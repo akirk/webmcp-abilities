@@ -94,6 +94,50 @@ class REST_API {
 			]
 		);
 
+		// The eye and the checkbox on the settings screen. Administrators only:
+		// these change what every visitor is shown.
+		$admin_only = [ $this, 'admin_permission_check' ];
+
+		register_rest_route(
+			self::NAMESPACE,
+			'/abilities/visibility',
+			[
+				'methods'             => \WP_REST_Server::CREATABLE,
+				'callback'            => [ $this, 'toggle_visibility' ],
+				'permission_callback' => $admin_only,
+				'args'                => [
+					'ability' => [
+						'type'     => 'string',
+						'required' => true,
+					],
+					'hide'    => [
+						'type'     => 'boolean',
+						'required' => true,
+					],
+				],
+			]
+		);
+
+		register_rest_route(
+			self::NAMESPACE,
+			'/abilities/anonymous',
+			[
+				'methods'             => \WP_REST_Server::CREATABLE,
+				'callback'            => [ $this, 'toggle_anonymous' ],
+				'permission_callback' => $admin_only,
+				'args'                => [
+					'ability'   => [
+						'type'     => 'string',
+						'required' => true,
+					],
+					'anonymous' => [
+						'type'     => 'boolean',
+						'required' => true,
+					],
+				],
+			]
+		);
+
 		// Nonce refresh endpoint.
 		register_rest_route(
 			self::NAMESPACE,
@@ -240,19 +284,15 @@ class REST_API {
 
 		$ability = wp_get_ability( $ability_name );
 
-		// Check wmcp_visibility — private abilities are never exposed.
-		if ( 'private' === $ability->get_meta_item( 'wmcp_visibility', 'public' ) ) {
-			return new \WP_REST_Response(
-				[
-					'code'    => 'wmcp_not_found',
-					'message' => __( 'Tool not found.', 'webmcp-abilities' ),
-				],
-				404
-			);
-		}
+		// A tool this caller is not shown is a tool this caller cannot run, so the
+		// same visibility rules as discovery apply — and give the same 404, rather
+		// than confirming the ability exists.
+		$visibility = $this->bridge->resolve_visibility( $ability_name, $ability );
 
-		// Check admin exposed-tools list.
-		if ( ! $this->settings->is_tool_exposed( $ability_name ) ) {
+		if (
+			Settings::VISIBILITY_PRIVATE === $visibility
+			|| ( Settings::VISIBILITY_AUTHENTICATED === $visibility && ! is_user_logged_in() )
+		) {
 			return new \WP_REST_Response(
 				[
 					'code'    => 'wmcp_not_found',
@@ -410,5 +450,123 @@ class REST_API {
 	 */
 	private function get_client_ip(): string {
 		return sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0' ) );
+	}
+
+	// =========================================================================
+	// POST /abilities/visibility and /abilities/anonymous
+	// =========================================================================
+
+	/**
+	 * Permission check for the settings-screen toggles.
+	 */
+	public function admin_permission_check(): bool {
+		return current_user_can( 'manage_options' );
+	}
+
+	/**
+	 * Resolve the ability a toggle request names, or an error.
+	 *
+	 * @param \WP_REST_Request $request Request object.
+	 * @return \WP_Ability|\WP_Error
+	 */
+	private function toggle_target( \WP_REST_Request $request ) {
+		$name = (string) $request->get_param( 'ability' );
+
+		if ( ! function_exists( 'wp_has_ability' ) || ! wp_has_ability( $name ) ) {
+			return new \WP_Error(
+				'wmcp_unknown_ability',
+				__( 'Unknown tool.', 'webmcp-abilities' ),
+				[ 'status' => 404 ]
+			);
+		}
+
+		$ability = wp_get_ability( $name );
+
+		if ( $this->bridge->is_locked( $ability ) ) {
+			return new \WP_Error(
+				'wmcp_locked_ability',
+				__( 'The plugin that registered this tool asked to keep it hidden.', 'webmcp-abilities' ),
+				[ 'status' => 400 ]
+			);
+		}
+
+		return $ability;
+	}
+
+	/**
+	 * Hide an ability from every agent, or advertise it again.
+	 *
+	 * Showing an ability again restores what its own plugin asked for, or the
+	 * default — the state it was hidden from is not remembered, so a tool never
+	 * comes back more visible than a fresh one would be.
+	 *
+	 * @param \WP_REST_Request $request Request object.
+	 * @return \WP_REST_Response|\WP_Error
+	 */
+	public function toggle_visibility( \WP_REST_Request $request ) {
+		$ability = $this->toggle_target( $request );
+
+		if ( is_wp_error( $ability ) ) {
+			return $ability;
+		}
+
+		$name = (string) $request->get_param( 'ability' );
+
+		if ( $request->get_param( 'hide' ) ) {
+			$this->settings->set_visibility_override( $name, Settings::VISIBILITY_PRIVATE );
+		} else {
+			$this->settings->set_visibility_override(
+				$name,
+				$this->bridge->declared_visibility( $ability ) ?? Settings::DEFAULT_VISIBILITY
+			);
+		}
+
+		return $this->toggle_response( $name, $ability );
+	}
+
+	/**
+	 * Advertise an ability to logged-out visitors, or restrict it to signed-in ones.
+	 *
+	 * @param \WP_REST_Request $request Request object.
+	 * @return \WP_REST_Response|\WP_Error
+	 */
+	public function toggle_anonymous( \WP_REST_Request $request ) {
+		$ability = $this->toggle_target( $request );
+
+		if ( is_wp_error( $ability ) ) {
+			return $ability;
+		}
+
+		$name = (string) $request->get_param( 'ability' );
+
+		$this->settings->set_visibility_override(
+			$name,
+			$request->get_param( 'anonymous' ) ? Settings::VISIBILITY_PUBLIC : Settings::VISIBILITY_AUTHENTICATED
+		);
+
+		return $this->toggle_response( $name, $ability );
+	}
+
+	/**
+	 * The row a toggle produced, plus the counts in the table's caption.
+	 *
+	 * @param string      $name    Ability identifier.
+	 * @param \WP_Ability $ability Ability object.
+	 */
+	private function toggle_response( string $name, \WP_Ability $ability ): \WP_REST_Response {
+		$this->bridge->invalidate_cache();
+
+		$rows = $this->bridge->report();
+
+		return new \WP_REST_Response(
+			array_merge(
+				$this->bridge->report_row( $name, $ability ),
+				[
+					'count_total'     => count( $rows ),
+					'count_shown'     => count( array_filter( array_column( $rows, 'visible' ) ) ),
+					'count_anonymous' => count( array_filter( array_column( $rows, 'anonymous' ) ) ),
+				]
+			)
+		);
 	}
 }

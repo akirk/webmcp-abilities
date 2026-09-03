@@ -145,16 +145,51 @@ add_action( 'wp_abilities_api_init', function () {
 
 > **Important:** WordPress requires the category to be registered via `wp_register_ability_category()` before any ability can use it. Abilities with unregistered categories are silently dropped by core. You can also use the `'webmcp'` category registered by this plugin.
 
-WebMCP Abilities automatically picks up any registered ability — but the site admin must enable third-party tools in **Settings → WebMCP** (they default to hidden on fresh installs).
+WebMCP Abilities picks up any registered ability automatically: a plugin's tools are
+advertised to signed-in agents as soon as the plugin is active, with no trip to the
+settings page. There is no allowlist to tick, because an allowlist duplicates work the
+abilities' own `permission_callback`s already do — an agent is only ever shown a tool
+whose permission callback passes for the visitor behind it.
 
 ### Visibility Control
 
+Three states, settable by the plugin that registers the ability and overridable per
+ability by the site administrator on the **Tools** tab of **Settings → WebMCP** — an eye
+to hide a tool or show it again, and a checkbox to advertise it to logged-out visitors as
+well. Both apply as you click them; a hidden tool's checkbox is disabled, because a tool
+nobody is shown reaches nobody:
+
 ```php
-// Public: visible to all agents (logged-in or not)
+// Anyone: advertised to logged-out visitors too, if the site allows public discovery
 'meta' => array( 'wmcp_visibility' => 'public' )
 
-// Hidden: never exposed to agents, even if registered
+// Signed-in users only: the default when nothing is declared
+'meta' => array( 'wmcp_visibility' => 'authenticated' )
+
+// Nobody: never advertised, and the administrator cannot override this
 'meta' => array( 'wmcp_visibility' => 'private' )
+```
+
+`authenticated` is the default because being *executable* by a logged-out visitor is not
+the same as being worth *advertising* to one: an ability with
+`'permission_callback' => '__return_true'` is fine to run anonymously but need not appear
+in every passing agent's tool list.
+
+The two levels compose. Site-wide, **Tool Discovery** decides whether logged-out visitors
+see anything at all; per ability, `public` decides whether this particular tool is part of
+what they see. An ability marked `public` on a site with public discovery off stays
+invisible to them.
+
+An ability that opted out of the [MCP Adapter](https://github.com/WordPress/mcp-adapter)
+with `meta.mcp.public = false` is treated as `private` here too, so a tool only has to
+withdraw once.
+
+Both the resolved state and the administrator's choice can be overridden in code:
+
+```php
+add_filter( 'wmcp_tool_visibility', function ( $visibility, $name, $ability ) {
+	return 'my-plugin/danger' === $name ? 'private' : $visibility;
+}, 10, 3 );
 ```
 
 ---
@@ -229,7 +264,7 @@ add_filter( 'wmcp_should_enqueue', fn( $enqueue, $context ) => 'admin' !== $cont
 - **Nonce verification** on write tool execute requests (`X-WP-Nonce` header) — read-only tools skip this
 - **Permission callbacks** re-evaluated at execution time (not just discovery)
 - **Private visibility** flag prevents internal abilities from appearing
-- **Admin allowlist** — site owner controls exactly which tools are exposed
+- **Per-ability visibility** — every tool is public, signed-in only, or hidden; the site owner has the last word, except over an ability that withdrew itself
 - **Rate limiting** per user+tool pair plus global IP-based discovery limit
 - **Input size cap** — 100 KB max payload (filterable)
 - **Schema validation** — depth limit and `$ref` rejection to prevent injection
@@ -265,7 +300,7 @@ webmcp-abilities/
 ├── webmcp-abilities.php          # Bootstrap, version guard
 ├── includes/
 │   ├── class-plugin.php       # Singleton wiring
-│   ├── class-settings.php     # Options: enabled, discovery, exposed list
+│   ├── class-settings.php     # Options: enabled, discovery, per-tool visibility
 │   ├── class-ability-bridge.php  # WP_Ability → WebMCP tool definition
 │   ├── class-builtin-tools.php   # 4 starter abilities
 │   ├── class-rest-api.php     # /tools, /execute, /nonce endpoints

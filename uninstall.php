@@ -13,6 +13,8 @@ defined( 'WP_UNINSTALL_PLUGIN' ) || exit;
 // Remove all plugin options.
 delete_option( 'wmcp_enabled' );
 delete_option( 'wmcp_exposed_tools' );
+delete_option( 'wmcp_tool_visibility' );
+delete_option( 'wmcp_visibility_migrated' );
 delete_option( 'wmcp_discovery_public' );
 delete_option( 'wmcp_bridge_cache_version' );
 
