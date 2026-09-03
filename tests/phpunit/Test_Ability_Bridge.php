@@ -48,18 +48,6 @@ class Test_Ability_Bridge extends WP_UnitTestCase {
 
 		update_option( Settings::OPTION_ENABLED, true );
 
-		// Explicitly expose test tools so convert() tests aren't blocked by the default allowlist.
-		update_option( Settings::OPTION_EXPOSED_TOOLS, [
-			'test/public',
-			'test/private',
-			'test/no-vis',
-			'test/locked',
-			'test/not-listed',
-			'test/listed',
-			'test/safe',
-			'test/filtered',
-		] );
-
 		// Ensure the abilities registry is initialized so our test category is available.
 		wp_get_abilities();
 
@@ -87,6 +75,7 @@ class Test_Ability_Bridge extends WP_UnitTestCase {
 		}
 		delete_option( Settings::OPTION_ENABLED );
 		delete_option( Settings::OPTION_EXPOSED_TOOLS );
+		delete_option( Settings::OPTION_TOOL_VISIBILITY );
 		parent::tearDown();
 	}
 
@@ -176,20 +165,43 @@ class Test_Ability_Bridge extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Verifies convert defaults to public when visibility not set.
+	 * Verifies an ability that declares nothing is advertised to signed-in users.
 	 */
-	public function test_convert_defaults_to_public_when_visibility_not_set(): void {
-		$tool = $this->convert(
-			'test/no-vis',
+	public function test_convert_defaults_to_authenticated_when_visibility_not_set(): void {
+		$args = [
+			'label'               => 'No Visibility Key',
+			'description'         => 'Missing wmcp_visibility',
+			'permission_callback' => '__return_true',
+			'execute_callback'    => '__return_null',
+		];
+
+		// Logged out: not advertised, even though anyone may execute it.
+		$this->assertNull( $this->convert( 'test/no-vis', $args ) );
+
+		wp_set_current_user( self::factory()->user->create( [ 'role' => 'subscriber' ] ) );
+
+		$ability = wp_get_ability( 'test/no-vis' );
+		$this->assertIsArray( $this->bridge->convert( 'test/no-vis', $ability ) );
+
+		wp_set_current_user( 0 );
+	}
+
+	/**
+	 * Verifies an ability that opted out with the MCP Adapter's flag stays hidden.
+	 */
+	public function test_convert_honours_mcp_public_false(): void {
+		$result = $this->convert(
+			'test/mcp-opt-out',
 			[
-				'label'               => 'No Visibility Key',
-				'description'         => 'Missing wmcp_visibility',
+				'label'               => 'Opted Out',
+				'description'         => 'Withdrew via meta.mcp.public',
+				'meta'                => [ 'mcp' => [ 'public' => false ] ],
 				'permission_callback' => '__return_true',
 				'execute_callback'    => '__return_null',
 			]
 		);
 
-		$this->assertIsArray( $tool );
+		$this->assertNull( $result );
 	}
 
 	// -------------------------------------------------------------------------
@@ -205,6 +217,7 @@ class Test_Ability_Bridge extends WP_UnitTestCase {
 			[
 				'label'               => 'Locked Tool',
 				'description'         => 'Admin only',
+				'meta'                => [ 'wmcp_visibility' => 'public' ],
 				'permission_callback' => '__return_false',
 				'execute_callback'    => '__return_null',
 			]
@@ -214,20 +227,21 @@ class Test_Ability_Bridge extends WP_UnitTestCase {
 	}
 
 	// -------------------------------------------------------------------------
-	// convert() — admin exposed list
+	// convert() — admin visibility overrides
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Verifies convert returns null when not in exposed list.
+	 * Verifies an admin override of 'private' hides an otherwise public ability.
 	 */
-	public function test_convert_returns_null_when_not_in_exposed_list(): void {
-		update_option( Settings::OPTION_EXPOSED_TOOLS, [ 'other/tool' ] );
+	public function test_convert_returns_null_when_admin_hides_tool(): void {
+		update_option( Settings::OPTION_TOOL_VISIBILITY, [ 'test/hidden' => Settings::VISIBILITY_PRIVATE ] );
 
 		$result = $this->convert(
-			'test/not-listed',
+			'test/hidden',
 			[
-				'label'               => 'Not Listed',
-				'description'         => 'Not in exposed list',
+				'label'               => 'Hidden By Admin',
+				'description'         => 'Overridden to private',
+				'meta'                => [ 'wmcp_visibility' => 'public' ],
 				'permission_callback' => '__return_true',
 				'execute_callback'    => '__return_null',
 			]
@@ -237,22 +251,70 @@ class Test_Ability_Bridge extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Verifies convert returns tool when in exposed list.
+	 * Verifies an admin override of 'public' advertises an ability to logged-out
+	 * visitors even though it declared itself signed-in only.
 	 */
-	public function test_convert_returns_tool_when_in_exposed_list(): void {
-		update_option( Settings::OPTION_EXPOSED_TOOLS, [ 'test/listed' ] );
+	public function test_convert_returns_tool_when_admin_makes_it_public(): void {
+		update_option( Settings::OPTION_TOOL_VISIBILITY, [ 'test/promoted' => Settings::VISIBILITY_PUBLIC ] );
 
 		$tool = $this->convert(
-			'test/listed',
+			'test/promoted',
 			[
-				'label'               => 'Listed Tool',
-				'description'         => 'In exposed list',
+				'label'               => 'Promoted',
+				'description'         => 'Overridden to public',
+				'meta'                => [ 'wmcp_visibility' => 'authenticated' ],
 				'permission_callback' => '__return_true',
 				'execute_callback'    => '__return_null',
 			]
 		);
 
 		$this->assertIsArray( $tool );
+	}
+
+	/**
+	 * Verifies an admin cannot advertise an ability that opted out itself.
+	 */
+	public function test_admin_cannot_override_an_ability_that_opted_out(): void {
+		update_option( Settings::OPTION_TOOL_VISIBILITY, [ 'test/opted-out' => Settings::VISIBILITY_PUBLIC ] );
+
+		$result = $this->convert(
+			'test/opted-out',
+			[
+				'label'               => 'Opted Out',
+				'description'         => 'Declared private by its plugin',
+				'meta'                => [ 'wmcp_visibility' => 'private' ],
+				'permission_callback' => '__return_true',
+				'execute_callback'    => '__return_null',
+			]
+		);
+
+		$this->assertNull( $result );
+	}
+
+	/**
+	 * Verifies the wmcp_tool_visibility filter has the final say.
+	 */
+	public function test_visibility_filter_overrides_admin_choice(): void {
+		update_option( Settings::OPTION_TOOL_VISIBILITY, [ 'test/filtered-vis' => Settings::VISIBILITY_PUBLIC ] );
+
+		$filter = static function () {
+			return Settings::VISIBILITY_PRIVATE;
+		};
+		add_filter( 'wmcp_tool_visibility', $filter );
+
+		$result = $this->convert(
+			'test/filtered-vis',
+			[
+				'label'               => 'Filtered',
+				'description'         => 'Hidden by filter',
+				'permission_callback' => '__return_true',
+				'execute_callback'    => '__return_null',
+			]
+		);
+
+		remove_filter( 'wmcp_tool_visibility', $filter );
+
+		$this->assertNull( $result );
 	}
 
 	// -------------------------------------------------------------------------
@@ -266,6 +328,7 @@ class Test_Ability_Bridge extends WP_UnitTestCase {
 		$tool = $this->convert(
 			'test/safe',
 			[
+				'meta'                => [ 'wmcp_visibility' => 'public' ],
 				'label'               => 'Safe Tool',
 				'description'         => '<script>alert("xss")</script>Safe description',
 				'permission_callback' => '__return_true',
@@ -351,6 +414,7 @@ class Test_Ability_Bridge extends WP_UnitTestCase {
 		$result = $this->convert(
 			'test/filtered',
 			[
+				'meta'                => [ 'wmcp_visibility' => 'public' ],
 				'label'               => 'Filtered Tool',
 				'description'         => 'Hidden by filter',
 				'permission_callback' => '__return_true',

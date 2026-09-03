@@ -4,7 +4,7 @@ Tags: ai, agents, webmcp, abilities, mcp
 Requires at least: 6.9
 Tested up to: 6.9
 Requires PHP: 8.0
-Stable tag: 0.6.1
+Stable tag: 0.7.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -82,8 +82,11 @@ add_action( 'wp_abilities_api_init', function () {
 
 Visibility options via the `meta` array:
 
-* `'wmcp_visibility' => 'public'` (default) — visible to agents, admin can toggle in settings
-* `'wmcp_visibility' => 'private'` — never exposed, even if admin enables it
+* `'wmcp_visibility' => 'public'` — advertised to logged-out visitors too, if the site allows public discovery
+* `'wmcp_visibility' => 'authenticated'` (default) — advertised only to signed-in users
+* `'wmcp_visibility' => 'private'` — never advertised, and the admin cannot override it
+
+An ability is advertised as soon as its plugin is active; there is no allowlist to tick. On the **Tools** tab of the settings page the admin can hide any ability with the eye, or tick its box to advertise it to logged-out visitors as well.
 
 == Installation ==
 
@@ -106,11 +109,11 @@ Just enable the plugin on the Settings → WebMCP page. Four built-in tools work
 
 = Is this safe? =
 
-Yes. Tool execution requires authentication (visitors must be logged in). The admin's "Exposed Tools" list controls which tools are available. Each tool's own `permission_callback` enforces WordPress capabilities at execution time.
+Yes. Every tool is advertised to signed-in users only unless it is explicitly marked public, and the admin can hide any tool outright. Each tool's own `permission_callback` enforces WordPress capabilities at execution time.
 
 = Can anonymous visitors use tools? =
 
-It depends on the tool. Public tools (like the built-in search and category tools) can be executed by anyone. Write tools and tools with custom permission callbacks may require authentication. The admin's "Exposed Tools" list controls which tools are visible.
+It depends on the tool. Public tools (like the built-in search and category tools) can be executed by anyone. Write tools and tools with custom permission callbacks may require authentication. A tool a visitor is not shown is also a tool that visitor cannot run.
 
 = Does this work with the WordPress MCP Adapter? =
 
@@ -122,9 +125,19 @@ This feature (which allows agents to discover tools before visiting the page) is
 
 == Screenshots ==
 
-1. The WebMCP Abilities settings page — enable the bridge, control tool discovery, and manage which tools are exposed to AI agents.
+1. The WebMCP Abilities settings page — the Tools tab lists every registered ability with an eye to hide it and a checkbox to open it up to logged-out visitors; the Settings tab enables the bridge and controls tool discovery.
 
 == Changelog ==
+
+= 0.7.0 =
+* Abilities registered by a plugin are advertised as soon as the plugin is active — no allowlist to tick
+* `wmcp_visibility` is now three states: `public`, `authenticated` (the default) and `private`
+* New: advertise a tool to signed-in users only, without hiding it entirely
+* An ability that opted out with `meta.mcp.public = false` is honoured here too
+* Settings page rebuilt with WordPress tabs and a table: an eye to hide a tool, a checkbox to open it to logged-out visitors
+* Execution now applies the same visibility rules as discovery
+* New `wmcp_tool_visibility` filter has the final say over both the ability and the admin
+* Upgrades convert an existing exposed-tools list, so tools left unticked stay hidden
 
 = 0.6.1 =
 * Security: third-party abilities now default to hidden on fresh installs
@@ -145,13 +158,16 @@ This feature (which allows agents to discover tools before visiting the page) is
 = 0.4.0 =
 * Initial release
 * Four built-in tools: wp/search-posts, wp/get-post, wp/get-categories, wp/submit-comment
-* Per-tool visibility control via Settings checkboxes
+* Per-tool visibility control via Settings
 * Public discovery toggle
 * Rate limiting: 30 executions/min per user, 100 discovery requests/min per IP
 * Full WordPress Abilities API integration
 * ETag-based client-side caching (24h TTL)
 
 == Upgrade Notice ==
+
+= 0.7.0 =
+Abilities now advertise themselves instead of waiting to be enabled. Any tool you had already unticked stays hidden; everything else becomes visible to signed-in agents only, never to logged-out visitors unless you tick its box.
 
 = 0.6.0 =
 Plugin renamed to "WebMCP Abilities for WordPress". Please update any references in your code or configuration.

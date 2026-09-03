@@ -83,6 +83,163 @@ class Ability_Bridge {
 	}
 
 	/**
+	 * The visibility an ability asks for itself, or null if it says nothing.
+	 *
+	 * `wmcp_visibility` is this plugin's own flag. `meta.mcp.public = false` is the
+	 * MCP Adapter's opt-out, honoured here so an ability that has withdrawn from
+	 * one bridge does not have to withdraw from the other separately.
+	 *
+	 * @param \WP_Ability $ability Ability object.
+	 */
+	public function declared_visibility( \WP_Ability $ability ): ?string {
+		$declared = $ability->get_meta_item( 'wmcp_visibility', null );
+
+		if ( is_string( $declared ) && in_array( $declared, Settings::VISIBILITIES, true ) ) {
+			return $declared;
+		}
+
+		$mcp = $ability->get_meta_item( 'mcp', [] );
+
+		if ( is_array( $mcp ) && isset( $mcp['public'] ) && false === $mcp['public'] ) {
+			return Settings::VISIBILITY_PRIVATE;
+		}
+
+		return null;
+	}
+
+	/**
+	 * Whether an ability has opted out in its own registration.
+	 *
+	 * An administrator can hide an ability the plugin was happy to advertise, but
+	 * not advertise one the plugin asked to keep hidden.
+	 *
+	 * @param \WP_Ability $ability Ability object.
+	 */
+	public function is_locked( \WP_Ability $ability ): bool {
+		return Settings::VISIBILITY_PRIVATE === $this->declared_visibility( $ability );
+	}
+
+	/**
+	 * The visibility that actually applies to an ability.
+	 *
+	 * An ability that opted out stays out. Otherwise the administrator's decision
+	 * wins, then the ability's own declaration, then the default.
+	 *
+	 * @param string      $name    Ability identifier.
+	 * @param \WP_Ability $ability Ability object.
+	 */
+	public function resolve_visibility( string $name, \WP_Ability $ability ): string {
+		$declared = $this->declared_visibility( $ability );
+
+		if ( Settings::VISIBILITY_PRIVATE === $declared ) {
+			$visibility = Settings::VISIBILITY_PRIVATE;
+		} else {
+			$visibility = $this->settings->get_visibility_override( $name )
+				?? $declared
+				?? Settings::DEFAULT_VISIBILITY;
+		}
+
+		/**
+		 * Filter the visibility of a single ability.
+		 *
+		 * Has the final say over both the ability's own declaration and the
+		 * administrator's choice. Return one of 'public', 'authenticated' or
+		 * 'private'; anything else is ignored.
+		 *
+		 * @param string      $visibility Resolved visibility.
+		 * @param string      $name       Ability name.
+		 * @param \WP_Ability $ability    The ability object.
+		 */
+		$filtered = apply_filters( 'wmcp_tool_visibility', $visibility, $name, $ability );
+
+		return in_array( $filtered, Settings::VISIBILITIES, true ) ? $filtered : $visibility;
+	}
+
+	/**
+	 * Every registered ability with the verdict on it, for the settings screen.
+	 *
+	 * @return array<int, array{name:string,label:string,description:string,visibility:string,visible:bool,anonymous:bool,locked:bool,override:bool,reason:string}>
+	 */
+	public function report(): array {
+		if ( ! function_exists( 'wp_get_abilities' ) ) {
+			return [];
+		}
+
+		$rows = [];
+
+		foreach ( wp_get_abilities() as $name => $ability ) {
+			$rows[] = $this->report_row( $name, $ability );
+		}
+
+		usort(
+			$rows,
+			static function ( array $a, array $b ): int {
+				return strcmp( $a['name'], $b['name'] );
+			}
+		);
+
+		return $rows;
+	}
+
+	/**
+	 * One row of the report.
+	 *
+	 * @param string      $name    Ability identifier.
+	 * @param \WP_Ability $ability Ability object.
+	 * @return array<string, mixed>
+	 */
+	public function report_row( string $name, \WP_Ability $ability ): array {
+		$declared   = $this->declared_visibility( $ability );
+		$override   = $this->settings->get_visibility_override( $name );
+		$locked     = Settings::VISIBILITY_PRIVATE === $declared;
+		$visibility = $this->resolve_visibility( $name, $ability );
+
+		return [
+			'name'        => $name,
+			'label'       => wp_strip_all_tags( $ability->get_label() ),
+			'description' => wp_strip_all_tags( $ability->get_description() ),
+			'visibility'  => $visibility,
+			'visible'     => Settings::VISIBILITY_PRIVATE !== $visibility,
+			'anonymous'   => Settings::VISIBILITY_PUBLIC === $visibility,
+			'locked'      => $locked,
+			'override'    => ! $locked && null !== $override,
+			'reason'      => $this->reason( $visibility, $declared, $override, $locked ),
+		];
+	}
+
+	/**
+	 * Why an ability ended up where it did, in one phrase.
+	 *
+	 * @param string      $visibility Resolved visibility.
+	 * @param string|null $declared   What the ability asked for.
+	 * @param string|null $override   What the administrator asked for.
+	 * @param bool        $locked     Whether the ability opted out itself.
+	 */
+	private function reason( string $visibility, ?string $declared, ?string $override, bool $locked ): string {
+		if ( $locked ) {
+			return __( 'its own plugin asked to keep it hidden', 'webmcp-abilities' );
+		}
+
+		if ( null !== $override && $override === $visibility ) {
+			return __( 'set here', 'webmcp-abilities' );
+		}
+
+		if ( null !== $override ) {
+			return __( 'overridden in code', 'webmcp-abilities' );
+		}
+
+		if ( null !== $declared && $declared === $visibility ) {
+			return __( 'its own plugin registered it this way', 'webmcp-abilities' );
+		}
+
+		if ( Settings::DEFAULT_VISIBILITY === $visibility ) {
+			return __( 'the default', 'webmcp-abilities' );
+		}
+
+		return __( 'overridden in code', 'webmcp-abilities' );
+	}
+
+	/**
 	 * Convert a single WP_Ability to a WebMCP tool definition.
 	 * Returns null if the ability should not be exposed.
 	 *
@@ -91,34 +248,34 @@ class Ability_Bridge {
 	 * @return array|null
 	 */
 	public function convert( string $name, \WP_Ability $ability ): ?array {
-		// 1. Check wmcp_visibility flag — 'private' always hides.
-		$visibility = $ability->get_meta_item( 'wmcp_visibility', 'public' );
-		if ( 'private' === $visibility ) {
+		// 1. Resolve the ability's visibility and check it against this visitor.
+		$visibility = $this->resolve_visibility( $name, $ability );
+
+		if ( Settings::VISIBILITY_PRIVATE === $visibility ) {
 			return null;
 		}
 
-		// 2. Check admin's exposed-tools allowlist.
-		if ( ! $this->settings->is_tool_exposed( $name ) ) {
+		if ( Settings::VISIBILITY_AUTHENTICATED === $visibility && ! is_user_logged_in() ) {
 			return null;
 		}
 
-		// 3. Check permission callback for the current user.
+		// 2. Check permission callback for the current user.
 		$permission = $ability->check_permissions();
 		if ( true !== $permission ) {
 			return null;
 		}
 
-		// 4. Validate and sanitize the inputSchema.
+		// 3. Validate and sanitize the inputSchema.
 		$input_schema = $this->validate_schema( $ability->get_input_schema() );
 
-		// 5. Build the tool definition.
+		// 4. Build the tool definition.
 		$tool = [
 			'name'        => $name,
 			'description' => wp_strip_all_tags( $ability->get_description() ),
 			'inputSchema' => $input_schema,
 		];
 
-		// 6. Add readOnlyHint annotation if the ability declares itself read-only.
+		// 5. Add readOnlyHint annotation if the ability declares itself read-only.
 		if ( $ability->get_meta_item( 'wmcp_read_only', false ) ) {
 			$tool['annotations'] = [ 'readOnlyHint' => true ];
 		}

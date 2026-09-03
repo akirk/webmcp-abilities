@@ -60,6 +60,7 @@ class Test_REST_API extends WP_UnitTestCase {
 		wp_delete_user( $this->admin_id );
 		delete_option( Settings::OPTION_ENABLED );
 		delete_option( Settings::OPTION_EXPOSED_TOOLS );
+		delete_option( Settings::OPTION_TOOL_VISIBILITY );
 		delete_option( Settings::OPTION_DISCOVERY_PUBLIC );
 		wp_set_current_user( 0 );
 		parent::tearDown();
