@@ -269,10 +269,14 @@ class Admin_Page {
 							class="wmcp-eye"
 							data-ability="<?php echo esc_attr( $row['name'] ); ?>"
 							data-visible="<?php echo $row['visible'] ? '1' : '0'; ?>"
+							aria-label="<?php
+								/* translators: %s: tool name. */
+								echo esc_attr( sprintf( __( 'Advertise tool: %s', 'webmcp-abilities' ), $row['label'] ) );
+							?>"
 							aria-pressed="<?php echo $row['visible'] ? 'true' : 'false'; ?>"
 							<?php disabled( $row['locked'] ); ?>
 							title="<?php echo esc_attr( $this->eye_title( (bool) $row['visible'], (bool) $row['locked'] ) ); ?>">
-							<span class="dashicons <?php echo $row['visible'] ? 'dashicons-visibility' : 'dashicons-hidden'; ?>"<?php echo $row['visible'] ? ' style="color:#00a32a"' : ''; ?>></span>
+							<span aria-hidden="true" class="dashicons <?php echo $row['visible'] ? 'dashicons-visibility' : 'dashicons-hidden'; ?>"<?php echo $row['visible'] ? ' style="color:#00a32a"' : ''; ?>></span>
 						</button>
 					</td>
 					<td>
@@ -283,6 +287,10 @@ class Admin_Page {
 					<td class="wmcp-anon-cell">
 						<input type="checkbox"
 							class="wmcp-anon"
+							aria-label="<?php
+								/* translators: %s: tool name. */
+								echo esc_attr( sprintf( __( 'Advertise to logged-out visitors: %s', 'webmcp-abilities' ), $row['label'] ) );
+							?>"
 							data-ability="<?php echo esc_attr( $row['name'] ); ?>"
 							<?php checked( $row['anonymous'] ); ?>
 							<?php disabled( $row['locked'] || ! $row['visible'] ); ?>
@@ -401,7 +409,8 @@ class Admin_Page {
 		<style>
 			.wmcp .nav-tab-wrapper { margin-bottom:16px; }
 			.wmcp .wmcp-scroll { overflow-x:auto; max-width:100%; }
-			.wmcp .wmcp-eye { background:none; border:0; padding:0; cursor:pointer; line-height:1; }
+			.wmcp .wmcp-eye { background:none; border:0; padding:6px; min-width:32px; min-height:32px; cursor:pointer; line-height:1; }
+			.wmcp .wmcp-eye:focus-visible { outline:2px solid var(--wp-admin-theme-color, #2271b1); outline-offset:2px; }
 			.wmcp .wmcp-eye:disabled { opacity:.5; cursor:default; }
 			.wmcp .wmcp-ability.is-hidden { color:#646970; }
 			.wmcp .wmcp-anon-cell { text-align:center; }
