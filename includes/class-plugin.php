@@ -158,8 +158,8 @@ class Plugin {
 	 * @param string $context Where it is being loaded: 'front' or 'admin'.
 	 */
 	private function enqueue_script( string $context ): void {
-		// Only load when enabled and on HTTPS.
-		if ( ! $this->settings->is_enabled() || ! is_ssl() ) {
+		// Secure-context APIs also work on HTTP loopback origins during development.
+		if ( ! $this->settings->is_enabled() || ! Secure_Context::is_available() ) {
 			return;
 		}
 

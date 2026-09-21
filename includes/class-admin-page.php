@@ -111,9 +111,9 @@ class Admin_Page {
 				<?php esc_html_e( 'Allow AI agents visiting your site in Chrome 146+ to discover and use WordPress features as structured tools.', 'webmcp-abilities' ); ?>
 			</p>
 
-			<?php if ( ! is_ssl() ) : ?>
+			<?php if ( ! Secure_Context::is_available() ) : ?>
 				<div class="notice notice-error inline"><p>
-					<?php esc_html_e( 'This site is served over plain HTTP. The WebMCP standard requires a secure context, so the front-end bridge stays disabled until the site uses HTTPS.', 'webmcp-abilities' ); ?>
+					<?php esc_html_e( 'This site is not served from a secure context. The front-end bridge requires HTTPS, except on localhost and loopback addresses used for local development.', 'webmcp-abilities' ); ?>
 				</p></div>
 			<?php endif; ?>
 
@@ -336,11 +336,11 @@ class Admin_Page {
 		<h2><?php esc_html_e( 'Status', 'webmcp-abilities' ); ?></h2>
 		<ul>
 			<li>
-				<?php esc_html_e( 'HTTPS:', 'webmcp-abilities' ); ?>
-				<?php if ( is_ssl() ) : ?>
-					<span style="color:#00a32a;">✓ <?php esc_html_e( 'Enabled', 'webmcp-abilities' ); ?></span>
+				<?php esc_html_e( 'Secure context:', 'webmcp-abilities' ); ?>
+				<?php if ( Secure_Context::is_available() ) : ?>
+					<span style="color:#00a32a;">✓ <?php esc_html_e( 'Available', 'webmcp-abilities' ); ?></span>
 				<?php else : ?>
-					<span style="color:#d63638;">✗ <?php esc_html_e( 'Not enabled — WebMCP will not work', 'webmcp-abilities' ); ?></span>
+					<span style="color:#d63638;">✗ <?php esc_html_e( 'Unavailable — use HTTPS or a local loopback address', 'webmcp-abilities' ); ?></span>
 				<?php endif; ?>
 			</li>
 			<li>
