@@ -111,16 +111,17 @@ class Admin_Page {
 				<?php esc_html_e( 'Allow AI agents visiting your site in Chrome 146+ to discover and use WordPress features as structured tools.', 'webmcp-abilities' ); ?>
 			</p>
 
-			<?php if ( ! is_ssl() ) : ?>
+			<?php if ( ! Secure_Context::is_available() ) : ?>
 				<div class="notice notice-error inline"><p>
-					<?php esc_html_e( 'This site is served over plain HTTP. The WebMCP standard requires a secure context, so the front-end bridge stays disabled until the site uses HTTPS.', 'webmcp-abilities' ); ?>
+					<?php esc_html_e( 'This site is not served from a secure context. The front-end bridge requires HTTPS, except on localhost and loopback addresses used for local development.', 'webmcp-abilities' ); ?>
 				</p></div>
 			<?php endif; ?>
 
-			<nav class="nav-tab-wrapper">
+			<nav class="nav-tab-wrapper" aria-label="<?php esc_attr_e( 'WebMCP settings', 'webmcp-abilities' ); ?>">
 				<?php foreach ( $tabs as $id => $label ) : ?>
 					<a class="nav-tab<?php echo $tab === $id ? ' nav-tab-active' : ''; ?>"
-						href="<?php echo esc_url( $this->page_url( $id ) ); ?>"><?php echo esc_html( $label ); ?></a>
+						<?php if ( $tab === $id ) : ?>aria-current="page"<?php endif; ?>
+							href="<?php echo esc_url( $this->page_url( $id ) ); ?>"><?php echo esc_html( $label ); ?></a>
 				<?php endforeach; ?>
 			</nav>
 
@@ -216,13 +217,13 @@ class Admin_Page {
 		$shown     = count( array_filter( array_column( $rows, 'visible' ) ) );
 		$anonymous = count( array_filter( array_column( $rows, 'anonymous' ) ) );
 		?>
-		<h2><?php esc_html_e( 'Tools agents can reach', 'webmcp-abilities' ); ?></h2>
+		<h2><?php esc_html_e( 'Configured tools', 'webmcp-abilities' ); ?></h2>
 
 		<p class="description">
 			<?php
 			printf(
-				/* translators: 1: number advertised, 2: number of registered abilities */
-				esc_html__( 'Agents can reach %1$s of the %2$s abilities registered on this site. A plugin\'s tools are advertised as soon as it is active — each one checks its own permissions for whoever is asking, and that, not a list here, is what limits what an agent can do.', 'webmcp-abilities' ),
+				/* translators: 1: number configured for discovery, 2: number of registered abilities */
+				esc_html__( '%1$s of %2$s registered abilities are configured for discovery. Browser discovery also requires the bridge to be enabled and HTTPS. Each tool checks the permissions of the visitor requesting it.', 'webmcp-abilities' ),
 				'<strong id="wmcp-count-shown">' . esc_html( (string) $shown ) . '</strong>',
 				'<strong>' . esc_html( (string) count( $rows ) ) . '</strong>'
 			);
@@ -231,8 +232,8 @@ class Admin_Page {
 			<?php esc_html_e( 'Click the eye to hide a tool from agents, or to show it again. Tick the box to advertise it to logged-out visitors as well.', 'webmcp-abilities' ); ?>
 			<?php
 			printf(
-				/* translators: %s: number of tools advertised to logged-out visitors */
-				esc_html__( 'Right now %s are.', 'webmcp-abilities' ),
+				/* translators: %s: number of tools configured for public discovery */
+				esc_html__( 'Tools configured for public discovery: %s.', 'webmcp-abilities' ),
 				'<strong id="wmcp-count-anonymous">' . esc_html( (string) $anonymous ) . '</strong>'
 			);
 			?>
@@ -243,7 +244,7 @@ class Admin_Page {
 				<?php
 				printf(
 					/* translators: %s: link to the Settings tab */
-					esc_html__( 'Tool discovery is currently limited to signed-in users on the %s tab, so nothing reaches a logged-out visitor whatever these boxes say.', 'webmcp-abilities' ),
+					esc_html__( 'Public discovery is off. These public visibility choices are saved but do not advertise tools to logged-out visitors. Enable public discovery on the %s tab.', 'webmcp-abilities' ),
 					'<a href="' . esc_url( $this->page_url( 'settings' ) ) . '">' . esc_html__( 'Settings', 'webmcp-abilities' ) . '</a>'
 				);
 				?>
@@ -258,9 +259,9 @@ class Admin_Page {
 				<tr>
 					<th style="width:1.5em;"></th>
 					<th><?php esc_html_e( 'Tool', 'webmcp-abilities' ); ?></th>
-					<th><?php esc_html_e( 'What it does', 'webmcp-abilities' ); ?></th>
+
 					<th style="width:11em;" class="wmcp-anon-cell"><?php esc_html_e( 'Logged-out visitors', 'webmcp-abilities' ); ?></th>
-					<th style="width:16em;"><?php esc_html_e( 'Why', 'webmcp-abilities' ); ?></th>
+					<th style="width:9em;"><?php esc_html_e( 'Why', 'webmcp-abilities' ); ?></th>
 				</tr>
 			</thead>
 			<tbody>
@@ -271,26 +272,37 @@ class Admin_Page {
 							class="wmcp-eye"
 							data-ability="<?php echo esc_attr( $row['name'] ); ?>"
 							data-visible="<?php echo $row['visible'] ? '1' : '0'; ?>"
+							aria-label="<?php
+								/* translators: %s: tool name. */
+								echo esc_attr( sprintf( __( 'Advertise tool: %s', 'webmcp-abilities' ), $row['label'] ) );
+							?>"
 							aria-pressed="<?php echo $row['visible'] ? 'true' : 'false'; ?>"
 							<?php disabled( $row['locked'] ); ?>
 							title="<?php echo esc_attr( $this->eye_title( (bool) $row['visible'], (bool) $row['locked'] ) ); ?>">
-							<span class="dashicons <?php echo $row['visible'] ? 'dashicons-visibility' : 'dashicons-hidden'; ?>"<?php echo $row['visible'] ? ' style="color:#00a32a"' : ''; ?>></span>
+							<span aria-hidden="true" class="dashicons <?php echo $row['visible'] ? 'dashicons-visibility' : 'dashicons-hidden'; ?>"<?php echo $row['visible'] ? ' style="color:#00a32a"' : ''; ?>></span>
 						</button>
 					</td>
 					<td>
 						<strong><?php echo esc_html( $row['label'] ); ?></strong>
 						<br><code><?php echo esc_html( $row['name'] ); ?></code>
+						<p class="description"><?php echo esc_html( $row['description'] ); ?></p>
 					</td>
-					<td><?php echo esc_html( $row['description'] ); ?></td>
 					<td class="wmcp-anon-cell">
 						<input type="checkbox"
 							class="wmcp-anon"
+							aria-label="<?php
+								/* translators: %s: tool name. */
+								echo esc_attr( sprintf( __( 'Advertise to logged-out visitors: %s', 'webmcp-abilities' ), $row['label'] ) );
+							?>"
 							data-ability="<?php echo esc_attr( $row['name'] ); ?>"
 							<?php checked( $row['anonymous'] ); ?>
 							<?php disabled( $row['locked'] || ! $row['visible'] ); ?>
 							title="<?php echo esc_attr( $this->anon_title( (bool) $row['visible'], (bool) $row['locked'] ) ); ?>">
 					</td>
-					<td class="wmcp-reason<?php echo $row['override'] ? ' is-override' : ''; ?>"><?php echo esc_html( $row['reason'] ); ?></td>
+					<td><details>
+							<summary class="wmcp-reason-summary"><?php echo esc_html( $row['locked'] ? __( 'Locked by plugin', 'webmcp-abilities' ) : ( $row['override'] ? __( 'Custom', 'webmcp-abilities' ) : __( 'Plugin default', 'webmcp-abilities' ) ) ); ?></summary>
+							<p class="wmcp-reason<?php echo $row['override'] ? ' is-override' : ''; ?>"><?php echo esc_html( $row['reason'] ); ?></p>
+						</details></td>
 				</tr>
 				<?php endforeach; ?>
 			</tbody>
@@ -338,11 +350,11 @@ class Admin_Page {
 		<h2><?php esc_html_e( 'Status', 'webmcp-abilities' ); ?></h2>
 		<ul>
 			<li>
-				<?php esc_html_e( 'HTTPS:', 'webmcp-abilities' ); ?>
-				<?php if ( is_ssl() ) : ?>
-					<span style="color:#00a32a;">✓ <?php esc_html_e( 'Enabled', 'webmcp-abilities' ); ?></span>
+				<?php esc_html_e( 'Secure context:', 'webmcp-abilities' ); ?>
+				<?php if ( Secure_Context::is_available() ) : ?>
+					<span style="color:#00a32a;">✓ <?php esc_html_e( 'Available', 'webmcp-abilities' ); ?></span>
 				<?php else : ?>
-					<span style="color:#d63638;">✗ <?php esc_html_e( 'Not enabled — WebMCP will not work', 'webmcp-abilities' ); ?></span>
+					<span style="color:#d63638;">✗ <?php esc_html_e( 'Unavailable — use HTTPS or a local loopback address', 'webmcp-abilities' ); ?></span>
 				<?php endif; ?>
 			</li>
 			<li>
@@ -400,12 +412,18 @@ class Admin_Page {
 			'saving'    => __( 'Saving…', 'webmcp-abilities' ),
 			'saved'     => __( 'Saved.', 'webmcp-abilities' ),
 			'failed'    => __( 'Could not save that change. Please try again. If the problem continues, reload the page.', 'webmcp-abilities' ),
+			'custom'    => __( 'Custom', 'webmcp-abilities' ),
+			'default'   => __( 'Plugin default', 'webmcp-abilities' ),
+			'failed'    => __( 'Could not save that change. Reload the page and try again.', 'webmcp-abilities' ),
 		];
 		?>
 		<style>
 			.wmcp .nav-tab-wrapper { margin-bottom:16px; }
+			.wmcp .wmcp-ability code { overflow-wrap:anywhere; }
+			.wmcp .wmcp-ability details summary { cursor:pointer; }
 			.wmcp .wmcp-scroll { overflow-x:auto; max-width:100%; }
-			.wmcp .wmcp-eye { background:none; border:0; padding:0; cursor:pointer; line-height:1; }
+			.wmcp .wmcp-eye { background:none; border:0; padding:6px; min-width:32px; min-height:32px; cursor:pointer; line-height:1; }
+			.wmcp .wmcp-eye:focus-visible { outline:2px solid var(--wp-admin-theme-color, #2271b1); outline-offset:2px; }
 			.wmcp .wmcp-eye:disabled { opacity:.5; cursor:default; }
 			.wmcp .wmcp-ability.is-hidden { color:#646970; }
 			.wmcp .wmcp-anon-cell { text-align:center; }
@@ -445,6 +463,7 @@ class Admin_Page {
 
 				var reason = row.querySelector( '.wmcp-reason' );
 				reason.textContent = data.reason;
+				row.querySelector( '.wmcp-reason-summary' ).textContent = data.override ? i18n.custom : i18n.default;
 				reason.classList.toggle( 'is-override', !! data.override );
 
 				[ [ 'wmcp-count-shown', data.count_shown ], [ 'wmcp-count-anonymous', data.count_anonymous ] ].forEach( function ( pair ) {

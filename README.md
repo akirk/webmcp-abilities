@@ -91,7 +91,7 @@ add_filter( 'wmcp_include_builtin_tools', '__return_false' );
 
 - WordPress **6.9+** (requires the Abilities API)
 - PHP **8.0+**
-- **HTTPS** (WebMCP is a secure context API)
+- **A secure context** — HTTPS in production; HTTP is supported on localhost and loopback addresses for local development
 - Chrome **146+** with WebMCP flag enabled (for AI agents)
 
 ### From Source
@@ -260,7 +260,7 @@ add_filter( 'wmcp_should_enqueue', fn( $enqueue, $context ) => 'admin' !== $cont
 
 ## Security
 
-- **HTTPS enforced** — bridge script does not load over HTTP
+- **Secure context enforced** — the bridge loads over HTTPS, plus browser-trusted HTTP loopback origins for local development
 - **Nonce verification** on write tool execute requests (`X-WP-Nonce` header) — read-only tools skip this
 - **Permission callbacks** re-evaluated at execution time (not just discovery)
 - **Private visibility** flag prevents internal abilities from appearing

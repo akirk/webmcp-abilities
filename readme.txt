@@ -47,9 +47,9 @@ The plugin ships four starter tools that work immediately — no other plugins n
 
 WebMCP requires Chrome 146 or higher. On other browsers, the plugin loads but silently does nothing — no errors.
 
-= HTTPS Required =
+= Secure Context Required =
 
-The WebMCP standard requires a secure context. The front-end bridge will not load on HTTP sites. The plugin displays a warning in the admin if HTTPS is not detected.
+The WebMCP standard requires a secure context. The front-end bridge will not load on ordinary HTTP sites. Browsers make an exception for localhost and loopback addresses used for local development, and the plugin supports that exception.
 
 = For Plugin Developers =
 
@@ -93,7 +93,7 @@ An ability is advertised as soon as its plugin is active; there is no allowlist 
 1. Upload the `webmcp-abilities` folder to `/wp-content/plugins/`
 2. Activate the plugin through the **Plugins** screen in WordPress
 3. Go to **Settings → WebMCP** to enable and configure the plugin
-4. Ensure your site is served over HTTPS
+4. Ensure your production site is served over HTTPS (HTTP loopback URLs also work for local development)
 
 = Requirements =
 

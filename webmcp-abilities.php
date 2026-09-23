@@ -74,6 +74,7 @@ function wmcp_init(): void {
 	}
 
 	// Load class files.
+	require_once WMCP_PLUGIN_DIR . 'includes/class-secure-context.php';
 	require_once WMCP_PLUGIN_DIR . 'includes/class-rate-limiter.php';
 	require_once WMCP_PLUGIN_DIR . 'includes/class-ability-bridge.php';
 	require_once WMCP_PLUGIN_DIR . 'includes/class-builtin-tools.php';
