@@ -117,10 +117,11 @@ class Admin_Page {
 				</p></div>
 			<?php endif; ?>
 
-			<nav class="nav-tab-wrapper">
+			<nav class="nav-tab-wrapper" aria-label="<?php esc_attr_e( 'WebMCP settings', 'webmcp-abilities' ); ?>">
 				<?php foreach ( $tabs as $id => $label ) : ?>
 					<a class="nav-tab<?php echo $tab === $id ? ' nav-tab-active' : ''; ?>"
-						href="<?php echo esc_url( $this->page_url( $id ) ); ?>"><?php echo esc_html( $label ); ?></a>
+						<?php if ( $tab === $id ) : ?>aria-current="page"<?php endif; ?>
+							href="<?php echo esc_url( $this->page_url( $id ) ); ?>"><?php echo esc_html( $label ); ?></a>
 				<?php endforeach; ?>
 			</nav>
 
