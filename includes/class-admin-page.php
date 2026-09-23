@@ -217,13 +217,13 @@ class Admin_Page {
 		$shown     = count( array_filter( array_column( $rows, 'visible' ) ) );
 		$anonymous = count( array_filter( array_column( $rows, 'anonymous' ) ) );
 		?>
-		<h2><?php esc_html_e( 'Tools agents can reach', 'webmcp-abilities' ); ?></h2>
+		<h2><?php esc_html_e( 'Configured tools', 'webmcp-abilities' ); ?></h2>
 
 		<p class="description">
 			<?php
 			printf(
-				/* translators: 1: number advertised, 2: number of registered abilities */
-				esc_html__( 'Agents can reach %1$s of the %2$s abilities registered on this site. A plugin\'s tools are advertised as soon as it is active — each one checks its own permissions for whoever is asking, and that, not a list here, is what limits what an agent can do.', 'webmcp-abilities' ),
+				/* translators: 1: number configured for discovery, 2: number of registered abilities */
+				esc_html__( '%1$s of %2$s registered abilities are configured for discovery. Browser discovery also requires the bridge to be enabled and HTTPS. Each tool checks the permissions of the visitor requesting it.', 'webmcp-abilities' ),
 				'<strong id="wmcp-count-shown">' . esc_html( (string) $shown ) . '</strong>',
 				'<strong>' . esc_html( (string) count( $rows ) ) . '</strong>'
 			);
@@ -232,8 +232,8 @@ class Admin_Page {
 			<?php esc_html_e( 'Click the eye to hide a tool from agents, or to show it again. Tick the box to advertise it to logged-out visitors as well.', 'webmcp-abilities' ); ?>
 			<?php
 			printf(
-				/* translators: %s: number of tools advertised to logged-out visitors */
-				esc_html__( 'Right now %s are.', 'webmcp-abilities' ),
+				/* translators: %s: number of tools configured for public discovery */
+				esc_html__( 'Tools configured for public discovery: %s.', 'webmcp-abilities' ),
 				'<strong id="wmcp-count-anonymous">' . esc_html( (string) $anonymous ) . '</strong>'
 			);
 			?>
@@ -244,7 +244,7 @@ class Admin_Page {
 				<?php
 				printf(
 					/* translators: %s: link to the Settings tab */
-					esc_html__( 'Tool discovery is currently limited to signed-in users on the %s tab, so nothing reaches a logged-out visitor whatever these boxes say.', 'webmcp-abilities' ),
+					esc_html__( 'Public discovery is off. These public visibility choices are saved but do not advertise tools to logged-out visitors. Enable public discovery on the %s tab.', 'webmcp-abilities' ),
 					'<a href="' . esc_url( $this->page_url( 'settings' ) ) . '">' . esc_html__( 'Settings', 'webmcp-abilities' ) . '</a>'
 				);
 				?>
