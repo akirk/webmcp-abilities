@@ -257,9 +257,9 @@ class Admin_Page {
 				<tr>
 					<th style="width:1.5em;"></th>
 					<th><?php esc_html_e( 'Tool', 'webmcp-abilities' ); ?></th>
-					<th><?php esc_html_e( 'What it does', 'webmcp-abilities' ); ?></th>
+
 					<th style="width:11em;" class="wmcp-anon-cell"><?php esc_html_e( 'Logged-out visitors', 'webmcp-abilities' ); ?></th>
-					<th style="width:16em;"><?php esc_html_e( 'Why', 'webmcp-abilities' ); ?></th>
+					<th style="width:9em;"><?php esc_html_e( 'Why', 'webmcp-abilities' ); ?></th>
 				</tr>
 			</thead>
 			<tbody>
@@ -279,8 +279,8 @@ class Admin_Page {
 					<td>
 						<strong><?php echo esc_html( $row['label'] ); ?></strong>
 						<br><code><?php echo esc_html( $row['name'] ); ?></code>
+						<p class="description"><?php echo esc_html( $row['description'] ); ?></p>
 					</td>
-					<td><?php echo esc_html( $row['description'] ); ?></td>
 					<td class="wmcp-anon-cell">
 						<input type="checkbox"
 							class="wmcp-anon"
@@ -289,7 +289,10 @@ class Admin_Page {
 							<?php disabled( $row['locked'] || ! $row['visible'] ); ?>
 							title="<?php echo esc_attr( $this->anon_title( (bool) $row['visible'], (bool) $row['locked'] ) ); ?>">
 					</td>
-					<td class="wmcp-reason<?php echo $row['override'] ? ' is-override' : ''; ?>"><?php echo esc_html( $row['reason'] ); ?></td>
+					<td><details>
+							<summary class="wmcp-reason-summary"><?php echo esc_html( $row['locked'] ? __( 'Locked by plugin', 'webmcp-abilities' ) : ( $row['override'] ? __( 'Custom', 'webmcp-abilities' ) : __( 'Plugin default', 'webmcp-abilities' ) ) ); ?></summary>
+							<p class="wmcp-reason<?php echo $row['override'] ? ' is-override' : ''; ?>"><?php echo esc_html( $row['reason'] ); ?></p>
+						</details></td>
 				</tr>
 				<?php endforeach; ?>
 			</tbody>
@@ -396,11 +399,15 @@ class Admin_Page {
 			'eyeHidden' => __( 'Hidden — click to advertise', 'webmcp-abilities' ),
 			'anonOn'    => __( 'Advertise this tool to logged-out visitors too', 'webmcp-abilities' ),
 			'anonOff'   => __( 'A hidden tool reaches nobody', 'webmcp-abilities' ),
+			'custom'    => __( 'Custom', 'webmcp-abilities' ),
+			'default'   => __( 'Plugin default', 'webmcp-abilities' ),
 			'failed'    => __( 'Could not save that change. Reload the page and try again.', 'webmcp-abilities' ),
 		];
 		?>
 		<style>
 			.wmcp .nav-tab-wrapper { margin-bottom:16px; }
+			.wmcp .wmcp-ability code { overflow-wrap:anywhere; }
+			.wmcp .wmcp-ability details summary { cursor:pointer; }
 			.wmcp .wmcp-scroll { overflow-x:auto; max-width:100%; }
 			.wmcp .wmcp-eye { background:none; border:0; padding:0; cursor:pointer; line-height:1; }
 			.wmcp .wmcp-eye:disabled { opacity:.5; cursor:default; }
@@ -442,6 +449,7 @@ class Admin_Page {
 
 				var reason = row.querySelector( '.wmcp-reason' );
 				reason.textContent = data.reason;
+				row.querySelector( '.wmcp-reason-summary' ).textContent = data.override ? i18n.custom : i18n.default;
 				reason.classList.toggle( 'is-override', !! data.override );
 
 				[ [ 'wmcp-count-shown', data.count_shown ], [ 'wmcp-count-anonymous', data.count_anonymous ] ].forEach( function ( pair ) {
