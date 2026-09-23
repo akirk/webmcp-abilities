@@ -251,6 +251,8 @@ class Admin_Page {
 			</p>
 		<?php endif; ?>
 
+		<p class="description"><?php esc_html_e( 'Changes to tools are saved immediately.', 'webmcp-abilities' ); ?></p>
+		<div id="wmcp-save-status" role="status" aria-live="polite" aria-atomic="true"></div>
 		<div class="wmcp-scroll">
 		<table class="widefat striped" style="max-width:1100px;">
 			<thead>
@@ -407,6 +409,9 @@ class Admin_Page {
 			'eyeHidden' => __( 'Hidden — click to advertise', 'webmcp-abilities' ),
 			'anonOn'    => __( 'Advertise this tool to logged-out visitors too', 'webmcp-abilities' ),
 			'anonOff'   => __( 'A hidden tool reaches nobody', 'webmcp-abilities' ),
+			'saving'    => __( 'Saving…', 'webmcp-abilities' ),
+			'saved'     => __( 'Saved.', 'webmcp-abilities' ),
+			'failed'    => __( 'Could not save that change. Please try again. If the problem continues, reload the page.', 'webmcp-abilities' ),
 			'custom'    => __( 'Custom', 'webmcp-abilities' ),
 			'default'   => __( 'Plugin default', 'webmcp-abilities' ),
 			'failed'    => __( 'Could not save that change. Reload the page and try again.', 'webmcp-abilities' ),
@@ -467,15 +472,39 @@ class Admin_Page {
 				} );
 			}
 
+			var saving = false;
+			function saveChange( row, url, body, rollback ) {
+				if ( saving ) { return; }
+				saving = true;
+				var status = document.getElementById( 'wmcp-save-status' );
+				status.className = '';
+				status.textContent = i18n.saving;
+				row.setAttribute( 'aria-busy', 'true' );
+				// Serialize all changes: each response includes table-wide counts.
+				var controls = Array.from( document.querySelectorAll( '.wmcp-eye, .wmcp-anon' ) );
+				var disabled = controls.map( function ( control ) { return control.disabled; } );
+				controls.forEach( function ( control ) { control.disabled = true; } );
+				var result;
+				post( url, body )
+					.then( function ( data ) { result = data; status.textContent = i18n.saved; } )
+					.catch( function () {
+						if ( rollback ) { rollback(); }
+						status.className = 'notice notice-error inline';
+						status.textContent = i18n.failed;
+					} )
+					.then( function () {
+						controls.forEach( function ( control, index ) { control.disabled = disabled[index]; } );
+						if ( result ) { paint( row, result ); }
+						row.removeAttribute( 'aria-busy' );
+						saving = false;
+					} );
+			}
+
 			document.querySelectorAll( '.wmcp-eye' ).forEach( function ( eye ) {
 				eye.addEventListener( 'click', function () {
 					var hide = eye.dataset.visible === '1';
 					var row = eye.closest( 'tr' );
-					eye.disabled = true;
-					post( endpoints.visibility, { ability: eye.dataset.ability, hide: hide } )
-						.then( function ( data ) { paint( row, data ); } )
-						.catch( function () { window.alert( i18n.failed ); } )
-						.then( function () { eye.disabled = false; } );
+					saveChange( row, endpoints.visibility, { ability: eye.dataset.ability, hide: hide } );
 				} );
 			} );
 
@@ -483,14 +512,9 @@ class Admin_Page {
 				anon.addEventListener( 'change', function () {
 					var wanted = anon.checked;
 					var row = anon.closest( 'tr' );
-					anon.disabled = true;
-					post( endpoints.anonymous, { ability: anon.dataset.ability, anonymous: wanted } )
-						.then( function ( data ) { paint( row, data ); } )
-						.catch( function () {
-							anon.checked = ! wanted;
-							window.alert( i18n.failed );
-						} )
-						.then( function () { anon.disabled = false; } );
+					saveChange( row, endpoints.anonymous, { ability: anon.dataset.ability, anonymous: wanted }, function () {
+						anon.checked = ! wanted;
+					} );
 				} );
 			} );
 		} )();
