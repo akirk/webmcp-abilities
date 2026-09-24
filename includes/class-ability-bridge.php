@@ -21,6 +21,9 @@ class Ability_Bridge {
 	/** Option holding the cache generation, bumped to invalidate the tools list. */
 	const CACHE_VERSION_OPTION = 'wmcp_bridge_cache_version';
 
+	/** Tool-definition shape version, bumped when cached output changes. */
+	const CACHE_SCHEMA_VERSION = 2;
+
 	/**
 	 * Plugin settings instance.
 	 *
@@ -45,7 +48,7 @@ class Ability_Bridge {
 	 */
 	public function get_tools_for_current_user(): array {
 		$user_id   = get_current_user_id();
-		$cache_key = 'tools_' . $user_id . '_v' . $this->cache_version();
+		$cache_key = 'tools_' . $user_id . '_s' . self::CACHE_SCHEMA_VERSION . '_v' . $this->cache_version();
 
 		$cached = wp_cache_get( $cache_key, self::CACHE_GROUP );
 		if ( false !== $cached ) {
@@ -275,9 +278,10 @@ class Ability_Bridge {
 			'inputSchema' => $input_schema,
 		];
 
-		// 5. Add readOnlyHint annotation if the ability declares itself read-only.
-		if ( $ability->get_meta_item( 'wmcp_read_only', false ) ) {
-			$tool['annotations'] = [ 'readOnlyHint' => true ];
+		// 5. Translate WordPress Ability annotations to WebMCP/MCP hint names.
+		$annotations = $this->get_tool_annotations( $ability );
+		if ( [] !== $annotations ) {
+			$tool['annotations'] = $annotations;
 		}
 
 		/**
@@ -303,6 +307,38 @@ class Ability_Bridge {
 		}
 
 		return $tool;
+	}
+
+	/**
+	 * Translate an ability's standard annotations to WebMCP tool annotations.
+	 *
+	 * The legacy wmcp_read_only flag remains supported for abilities registered
+	 * before WordPress introduced the annotations metadata object.
+	 *
+	 * @param \WP_Ability $ability Ability object.
+	 * @return array<string, bool>
+	 */
+	public function get_tool_annotations( \WP_Ability $ability ): array {
+		$source = $ability->get_meta_item( 'annotations', [] );
+		$source = is_array( $source ) ? $source : [];
+		$map    = [
+			'readonly'   => 'readOnlyHint',
+			'destructive' => 'destructiveHint',
+			'idempotent'  => 'idempotentHint',
+		];
+		$result = [];
+
+		foreach ( $map as $ability_key => $tool_key ) {
+			if ( isset( $source[ $ability_key ] ) && is_bool( $source[ $ability_key ] ) ) {
+				$result[ $tool_key ] = $source[ $ability_key ];
+			}
+		}
+
+		if ( ! isset( $result['readOnlyHint'] ) && $ability->get_meta_item( 'wmcp_read_only', false ) ) {
+			$result['readOnlyHint'] = true;
+		}
+
+		return $result;
 	}
 
 	/**

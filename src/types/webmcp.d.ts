@@ -8,6 +8,8 @@ interface McpResult {
 
 interface ToolAnnotations {
 	readOnlyHint?: boolean;
+	destructiveHint?: boolean;
+	idempotentHint?: boolean;
 	[ key: string ]: unknown;
 }
 
