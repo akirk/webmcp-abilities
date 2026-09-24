@@ -4,7 +4,7 @@ Tags: ai, agents, webmcp, abilities, mcp
 Requires at least: 6.9
 Tested up to: 6.9
 Requires PHP: 8.0
-Stable tag: 0.7.0
+Stable tag: 0.8.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -129,6 +129,12 @@ This feature (which allows agents to discover tools before visiting the page) is
 
 == Changelog ==
 
+= 0.8.0 =
+* Map standard WordPress ability annotations to WebMCP tool hints
+* Allow WebMCP on secure HTTP loopback origins used for local development
+* Improve the tools table layout, discovery summary, navigation accessibility, and control labels
+* Show reliable save feedback and serialize settings updates to prevent races
+
 = 0.7.0 =
 * Abilities registered by a plugin are advertised as soon as the plugin is active — no allowlist to tick
 * `wmcp_visibility` is now three states: `public`, `authenticated` (the default) and `private`
@@ -165,6 +171,9 @@ This feature (which allows agents to discover tools before visiting the page) is
 * ETag-based client-side caching (24h TTL)
 
 == Upgrade Notice ==
+
+= 0.8.0 =
+Improves WebMCP compatibility, local-development support, and the accessibility and reliability of the settings interface.
 
 = 0.7.0 =
 Abilities now advertise themselves instead of waiting to be enabled. Any tool you had already unticked stays hidden; everything else becomes visible to signed-in agents only, never to logged-out visitors unless you tick its box.

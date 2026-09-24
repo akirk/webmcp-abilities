@@ -3,7 +3,7 @@
  * Plugin Name: WebMCP Abilities
  * Plugin URI:  https://code-atlantic.com/products/webmcp-abilities-for-wordpress/
  * Description: Bridges WordPress Abilities to the WebMCP browser API (document.modelContext), making any WordPress site's capabilities discoverable and invocable by AI agents in Chrome 146+.
- * Version:     0.7.0
+ * Version:     0.8.0
  * Author:      Code Atlantic
  * Author URI:  https://code-atlantic.com
  * License:     GPL-2.0-or-later
@@ -20,7 +20,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'WMCP_VERSION', '0.7.0' );
+define( 'WMCP_VERSION', '0.8.0' );
 define( 'WMCP_PLUGIN_FILE', __FILE__ );
 define( 'WMCP_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WMCP_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
