@@ -318,8 +318,9 @@ class REST_API {
 		}
 
 		// Nonce verification for logged-in users on write tools — prevents CSRF.
-		// Read-only tools (wmcp_read_only) and unauthenticated requests skip this.
-		$is_read_only = (bool) $ability->get_meta_item( 'wmcp_read_only', false );
+		// Read-only tools and unauthenticated requests skip this.
+		$annotations  = $this->bridge->get_tool_annotations( $ability );
+		$is_read_only = true === ( $annotations['readOnlyHint'] ?? false );
 		if ( is_user_logged_in() && ! $is_read_only ) {
 			// Sent as X-WMCP-Nonce: X-WP-Nonce belongs to core, which needs a
 			// 'wp_rest' nonce there to accept the auth cookie at all. Older

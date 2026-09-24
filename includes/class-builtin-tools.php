@@ -107,7 +107,11 @@ class Builtin_Tools {
 				'permission_callback' => '__return_true',
 				'meta'                => [
 					'wmcp_visibility' => 'public',
-					'wmcp_read_only'  => true,
+					'annotations'     => [
+						'readonly'   => true,
+						'destructive' => false,
+						'idempotent'  => true,
+					],
 				],
 			]
 		);
@@ -195,7 +199,11 @@ class Builtin_Tools {
 				'permission_callback' => '__return_true',
 				'meta'                => [
 					'wmcp_visibility' => 'public',
-					'wmcp_read_only'  => true,
+					'annotations'     => [
+						'readonly'   => true,
+						'destructive' => false,
+						'idempotent'  => true,
+					],
 				],
 			]
 		);
@@ -283,7 +291,11 @@ class Builtin_Tools {
 				'permission_callback' => '__return_true',
 				'meta'                => [
 					'wmcp_visibility' => 'public',
-					'wmcp_read_only'  => true,
+					'annotations'     => [
+						'readonly'   => true,
+						'destructive' => false,
+						'idempotent'  => true,
+					],
 				],
 			]
 		);
@@ -367,7 +379,14 @@ class Builtin_Tools {
 				],
 				'execute_callback'    => [ $this, 'execute_submit_comment' ],
 				'permission_callback' => [ $this, 'can_submit_comment' ],
-				'meta'                => [ 'wmcp_visibility' => 'public' ],
+				'meta'                => [
+					'wmcp_visibility' => 'public',
+					'annotations'     => [
+						'readonly'   => false,
+						'destructive' => false,
+						'idempotent'  => false,
+					],
+				],
 			]
 		);
 	}

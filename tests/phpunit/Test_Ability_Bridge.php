@@ -341,6 +341,59 @@ class Test_Ability_Bridge extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'Safe description', $tool['description'] );
 	}
 
+	/**
+	 * Verifies standard WordPress Ability annotations become WebMCP hints.
+	 */
+	public function test_convert_translates_standard_annotations(): void {
+		$tool = $this->convert(
+			'test/annotated',
+			[
+				'meta'                => [
+					'wmcp_visibility' => 'public',
+					'annotations'     => [
+						'readonly'   => false,
+						'destructive' => true,
+						'idempotent'  => false,
+					],
+				],
+				'label'               => 'Annotated Tool',
+				'description'         => 'Carries standard annotations',
+				'permission_callback' => '__return_true',
+				'execute_callback'    => '__return_null',
+			]
+		);
+
+		$this->assertSame(
+			[
+				'readOnlyHint'   => false,
+				'destructiveHint' => true,
+				'idempotentHint'  => false,
+			],
+			$tool['annotations']
+		);
+	}
+
+	/**
+	 * Verifies the legacy read-only flag remains supported.
+	 */
+	public function test_convert_supports_legacy_read_only_annotation(): void {
+		$tool = $this->convert(
+			'test/legacy-read-only',
+			[
+				'meta'                => [
+					'wmcp_visibility' => 'public',
+					'wmcp_read_only'  => true,
+				],
+				'label'               => 'Legacy Read Tool',
+				'description'         => 'Uses the legacy flag',
+				'permission_callback' => '__return_true',
+				'execute_callback'    => '__return_null',
+			]
+		);
+
+		$this->assertSame( [ 'readOnlyHint' => true ], $tool['annotations'] );
+	}
+
 	// -------------------------------------------------------------------------
 	// validate_schema()
 	// -------------------------------------------------------------------------

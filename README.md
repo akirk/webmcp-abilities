@@ -323,7 +323,7 @@ webmcp-abilities/
 - [ ] WooCommerce tools (products, cart, checkout)
 - [ ] BuddyPress / bbPress community tools
 - [ ] Declarative WebMCP API support (HTML form population)
-- [ ] Tool annotations (`readonly`, `destructive`, `idempotent`)
+- [x] Tool annotations (`readonly`, `destructive`, `idempotent`)
 - [x] WordPress.org plugin directory submission
 
 ---
