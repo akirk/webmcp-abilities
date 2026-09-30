@@ -422,6 +422,34 @@ class Test_Ability_Bridge extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Nested item enums must not cause the whole input schema to be discarded.
+	 */
+	public function test_validate_schema_preserves_nested_item_enum(): void {
+		$valid = [
+			'type'                 => 'object',
+			'properties'           => [
+				'trip_id' => [ 'type' => 'integer' ],
+				'segment' => [
+					'type'                 => 'object',
+					'properties'           => [
+						'type'  => [
+							'type' => 'string',
+							'enum' => [ 'flight', 'lodging', 'train', 'car', 'activity', 'other' ],
+						],
+						'title' => [ 'type' => 'string' ],
+					],
+					'required'             => [ 'title' ],
+					'additionalProperties' => false,
+				],
+			],
+			'required'             => [ 'trip_id', 'segment' ],
+			'additionalProperties' => false,
+		];
+
+		$this->assertSame( $valid, $this->bridge->validate_schema( $valid ) );
+	}
+
+	/**
 	 * Verifies validate_schema rejects dollar ref.
 	 */
 	public function test_validate_schema_rejects_dollar_ref(): void {
