@@ -22,7 +22,7 @@ class Ability_Bridge {
 	const CACHE_VERSION_OPTION = 'wmcp_bridge_cache_version';
 
 	/** Tool-definition shape version, bumped when cached output changes. */
-	const CACHE_SCHEMA_VERSION = 4;
+	const CACHE_SCHEMA_VERSION = 3;
 
 	/**
 	 * Plugin settings instance.
