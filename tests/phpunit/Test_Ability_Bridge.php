@@ -351,7 +351,7 @@ class Test_Ability_Bridge extends WP_UnitTestCase {
 				'meta'                => [
 					'wmcp_visibility' => 'public',
 					'annotations'     => [
-						'readonly'   => false,
+						'readonly'    => false,
 						'destructive' => true,
 						'idempotent'  => false,
 					],
@@ -365,7 +365,7 @@ class Test_Ability_Bridge extends WP_UnitTestCase {
 
 		$this->assertSame(
 			[
-				'readOnlyHint'   => false,
+				'readOnlyHint'    => false,
 				'destructiveHint' => true,
 				'idempotentHint'  => false,
 			],
@@ -413,12 +413,67 @@ class Test_Ability_Bridge extends WP_UnitTestCase {
 	 * Verifies validate_schema rejects excessive depth.
 	 */
 	public function test_validate_schema_rejects_excessive_depth(): void {
-		$deep   = [ 'a' => [ 'b' => [ 'c' => [ 'd' => [ 'e' => [ 'f' => 'too deep' ] ] ] ] ] ];
-		$schema = $this->bridge->validate_schema( $deep );
-		$this->assertEquals( [
-			'type'       => 'object',
-			'properties' => new \stdClass(),
-		], $schema );
+		$deep = [ 'type' => 'string' ];
+		for ( $level = 0; $level < 5; ++$level ) {
+			$deep = [
+				'type'       => 'object',
+				'properties' => [ 'child' => $deep ],
+			];
+		}
+		$this->assertNull( $this->bridge->validate_schema( $deep ) );
+	}
+
+	/**
+	 * Five actual schema levels remain available despite intervening containers.
+	 */
+	public function test_validate_schema_preserves_five_schema_levels(): void {
+		$schema = [
+			'type' => 'string',
+			'enum' => [ 'a', 'b' ],
+		];
+		foreach ( [ 'properties', 'items', 'anyOf', 'properties' ] as $keyword ) {
+			if ( 'properties' === $keyword ) {
+				$schema = [
+					'type'       => 'object',
+					'properties' => [ 'enum' => $schema ],
+				];
+			} elseif ( 'anyOf' === $keyword ) {
+				$schema = [ 'anyOf' => [ $schema ] ];
+			} else {
+				$schema = [
+					'type'  => 'array',
+					'items' => $schema,
+				];
+			}
+		}
+		$this->assertSame( $schema, $this->bridge->validate_schema( $schema ) );
+	}
+
+	/**
+	 * Unsupported schemas hide the tool and explain why through WordPress diagnostics.
+	 *
+	 * @expectedIncorrectUsage WebMCP\Ability_Bridge::convert
+	 */
+	public function test_convert_omits_excessively_deep_schema(): void {
+		$schema = [ 'type' => 'string' ];
+		for ( $level = 0; $level < 5; ++$level ) {
+			$schema = [
+				'type'       => 'object',
+				'properties' => [ 'child' => $schema ],
+			];
+		}
+		$tool = $this->convert(
+			'test/deep-schema',
+			[
+				'meta'                => [ 'wmcp_visibility' => 'public' ],
+				'label'               => 'Deep schema',
+				'description'         => 'Requires deeply nested input.',
+				'input_schema'        => $schema,
+				'permission_callback' => '__return_true',
+				'execute_callback'    => '__return_null',
+			]
+		);
+		$this->assertNull( $tool );
 	}
 
 	/**
@@ -460,10 +515,7 @@ class Test_Ability_Bridge extends WP_UnitTestCase {
 			],
 		];
 		$schema          = $this->bridge->validate_schema( $schema_with_ref );
-		$this->assertEquals( [
-			'type'       => 'object',
-			'properties' => new \stdClass(),
-		], $schema );
+		$this->assertNull( $schema );
 	}
 
 	/**

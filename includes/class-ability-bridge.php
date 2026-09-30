@@ -22,7 +22,7 @@ class Ability_Bridge {
 	const CACHE_VERSION_OPTION = 'wmcp_bridge_cache_version';
 
 	/** Tool-definition shape version, bumped when cached output changes. */
-	const CACHE_SCHEMA_VERSION = 3;
+	const CACHE_SCHEMA_VERSION = 4;
 
 	/**
 	 * Plugin settings instance.
@@ -270,6 +270,18 @@ class Ability_Bridge {
 
 		// 3. Validate and sanitize the inputSchema.
 		$input_schema = $this->validate_schema( $ability->get_input_schema() );
+		if ( null === $input_schema ) {
+			_doing_it_wrong(
+				__METHOD__,
+				sprintf(
+					/* translators: %s: Ability name. */
+					esc_html__( 'The ability "%s" was omitted from WebMCP because its input schema exceeds five schema levels or contains an unsupported $ref.', 'webmcp-abilities' ),
+					esc_html( $name )
+				),
+				'0.8.0'
+			);
+			return null;
+		}
 
 		// 4. Build the tool definition.
 		$tool = [
@@ -322,7 +334,7 @@ class Ability_Bridge {
 		$source = $ability->get_meta_item( 'annotations', [] );
 		$source = is_array( $source ) ? $source : [];
 		$map    = [
-			'readonly'   => 'readOnlyHint',
+			'readonly'    => 'readOnlyHint',
 			'destructive' => 'destructiveHint',
 			'idempotent'  => 'idempotentHint',
 		];
@@ -346,9 +358,9 @@ class Ability_Bridge {
 	 * Rejects schemas with depth > 5 or unsupported $ref usage.
 	 *
 	 * @param array $schema Raw schema from ability definition.
-	 * @return array Validated schema, or empty-object schema on failure.
+	 * @return array|null Validated schema, or null for an unsupported schema.
 	 */
-	public function validate_schema( array $schema ): array {
+	public function validate_schema( array $schema ): ?array {
 		// Cast properties to stdClass so JSON encodes as {} not [].
 		$empty = [
 			'type'       => 'object',
@@ -360,11 +372,11 @@ class Ability_Bridge {
 		}
 
 		if ( $this->schema_depth( $schema ) > 5 ) {
-			return $empty;
+			return null;
 		}
 
 		if ( $this->schema_has_ref( $schema ) ) {
-			return $empty;
+			return null;
 		}
 
 		return $this->fix_empty_properties( $schema );
@@ -401,22 +413,35 @@ class Ability_Bridge {
 	}
 
 	/**
-	 * Compute schema nesting depth, excluding value and annotation arrays.
+	 * Compute actual schema depth, excluding schema containers and data values.
 	 *
 	 * @param array $schema Schema to inspect.
 	 * @param int   $depth  Current depth (1-based at the top level).
-	 * @param bool  $schema_map Whether keys are property names rather than schema keywords.
 	 */
-	private function schema_depth( array $schema, int $depth = 1, bool $schema_map = false ): int {
+	private function schema_depth( array $schema, int $depth = 1 ): int {
+		if ( $depth > 5 ) {
+			return $depth;
+		}
+
 		$max = $depth;
 		foreach ( $schema as $keyword => $value ) {
-			// These keywords contain values or field names, not child schemas.
-			if ( ! $schema_map && in_array( $keyword, [ 'enum', 'const', 'default', 'examples', 'required', 'type' ], true ) ) {
+			if ( ! is_array( $value ) ) {
 				continue;
 			}
-			if ( is_array( $value ) ) {
-				$child = $this->schema_depth( $value, $depth + 1, ! $schema_map && in_array( $keyword, [ 'properties', 'patternProperties', 'definitions', '$defs', 'dependentSchemas' ], true ) );
-				$max   = max( $max, $child );
+
+			// Maps and lists are containers; only their child schemas add a level.
+			if ( in_array( $keyword, [ 'properties', 'patternProperties', 'definitions', '$defs', 'dependentSchemas', 'dependencies', 'allOf', 'anyOf', 'oneOf', 'prefixItems' ], true ) || ( 'items' === $keyword && ( [] === $value || array_keys( $value ) === range( 0, count( $value ) - 1 ) ) ) ) {
+				foreach ( $value as $child ) {
+					if ( is_array( $child ) && ( 'dependencies' !== $keyword || ( [] !== $child && array_keys( $child ) !== range( 0, count( $child ) - 1 ) ) ) ) {
+						$max = max( $max, $this->schema_depth( $child, $depth + 1 ) );
+					}
+				}
+			} elseif ( in_array( $keyword, [ 'items', 'additionalItems', 'additionalProperties', 'unevaluatedItems', 'unevaluatedProperties', 'contains', 'propertyNames', 'not', 'if', 'then', 'else', 'contentSchema' ], true ) ) {
+				$max = max( $max, $this->schema_depth( $value, $depth + 1 ) );
+			}
+
+			if ( $max > 5 ) {
+				return $max;
 			}
 		}
 		return $max;
