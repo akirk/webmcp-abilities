@@ -351,7 +351,7 @@ class Test_Ability_Bridge extends WP_UnitTestCase {
 				'meta'                => [
 					'wmcp_visibility' => 'public',
 					'annotations'     => [
-						'readonly'   => false,
+						'readonly'    => false,
 						'destructive' => true,
 						'idempotent'  => false,
 					],
@@ -365,7 +365,7 @@ class Test_Ability_Bridge extends WP_UnitTestCase {
 
 		$this->assertSame(
 			[
-				'readOnlyHint'   => false,
+				'readOnlyHint'    => false,
 				'destructiveHint' => true,
 				'idempotentHint'  => false,
 			],
@@ -410,15 +410,113 @@ class Test_Ability_Bridge extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Verifies validate_schema rejects excessive depth.
+	 * Preserves fields and requirements while replacing deeper schemas with {}.
+	 *
+	 * @expectedIncorrectUsage WebMCP\Ability_Bridge::validate_schema
 	 */
-	public function test_validate_schema_rejects_excessive_depth(): void {
-		$deep   = [ 'a' => [ 'b' => [ 'c' => [ 'd' => [ 'e' => [ 'f' => 'too deep' ] ] ] ] ] ];
-		$schema = $this->bridge->validate_schema( $deep );
-		$this->assertEquals( [
-			'type'       => 'object',
-			'properties' => new \stdClass(),
-		], $schema );
+	public function test_validate_schema_caps_excessive_depth(): void {
+		$deep = [ 'type' => 'string' ];
+		for ( $level = 0; $level < 5; ++$level ) {
+			$deep = [
+				'type'       => 'object',
+				'properties' => [ 'child' => $deep ],
+			];
+		}
+		$expected = new \stdClass();
+		for ( $level = 0; $level < 5; ++$level ) {
+			$expected = [
+				'type'       => 'object',
+				'properties' => [ 'child' => $expected ],
+			];
+		}
+		$deep['required']     = [ 'child' ];
+		$expected['required'] = [ 'child' ];
+		$this->assertEquals( $expected, $this->bridge->validate_schema( $deep ) );
+		$this->assertStringContainsString( '"child":{}', wp_json_encode( $this->bridge->validate_schema( $deep ) ) );
+	}
+
+	/**
+	 * Truncation covers composition lists, tuple items, and individual schemas.
+	 *
+	 * @expectedIncorrectUsage WebMCP\Ability_Bridge::validate_schema
+	 */
+	public function test_validate_schema_caps_mixed_child_schemas(): void {
+		$schema   = [
+			'allOf' => [ [ 'type' => 'string' ] ],
+			'items' => [ [ 'type' => 'integer' ] ],
+			'not'   => [ 'type' => 'null' ],
+		];
+		$expected = [
+			'allOf' => [ new \stdClass() ],
+			'items' => [ new \stdClass() ],
+			'not'   => new \stdClass(),
+		];
+		for ( $level = 0; $level < 4; ++$level ) {
+			$schema   = [
+				'type'  => 'array',
+				'items' => $schema,
+			];
+			$expected = [
+				'type'  => 'array',
+				'items' => $expected,
+			];
+		}
+		$this->assertEquals( $expected, $this->bridge->validate_schema( $schema ) );
+	}
+
+	/**
+	 * Five actual schema levels remain available despite intervening containers.
+	 */
+	public function test_validate_schema_preserves_five_schema_levels(): void {
+		$schema = [
+			'type' => 'string',
+			'enum' => [ 'a', 'b' ],
+		];
+		foreach ( [ 'properties', 'items', 'anyOf', 'properties' ] as $keyword ) {
+			if ( 'properties' === $keyword ) {
+				$schema = [
+					'type'       => 'object',
+					'properties' => [ 'enum' => $schema ],
+				];
+			} elseif ( 'anyOf' === $keyword ) {
+				$schema = [ 'anyOf' => [ $schema ] ];
+			} else {
+				$schema = [
+					'type'  => 'array',
+					'items' => $schema,
+				];
+			}
+		}
+		$this->assertSame( $schema, $this->bridge->validate_schema( $schema ) );
+	}
+
+	/**
+	 * Deep schemas remain discoverable with truncated input guidance.
+	 *
+	 * @expectedIncorrectUsage WebMCP\Ability_Bridge::validate_schema
+	 */
+	public function test_convert_preserves_excessively_deep_schema(): void {
+		$schema = [ 'type' => 'string' ];
+		for ( $level = 0; $level < 5; ++$level ) {
+			$schema = [
+				'type'       => 'object',
+				'properties' => [ 'child' => $schema ],
+			];
+		}
+		$tool = $this->convert(
+			'test/deep-schema',
+			[
+				'meta'                => [ 'wmcp_visibility' => 'public' ],
+				'label'               => 'Deep schema',
+				'description'         => 'Requires deeply nested input.',
+				'input_schema'        => $schema,
+				'permission_callback' => '__return_true',
+				'execute_callback'    => '__return_null',
+			]
+		);
+		$this->assertSame( 'test/deep-schema', $tool['name'] );
+		$this->assertSame( 'object', $tool['inputSchema']['type'] );
+		$this->assertStringContainsString( '"child":{}', wp_json_encode( $tool['inputSchema'] ) );
 	}
 
 	/**
@@ -460,10 +558,7 @@ class Test_Ability_Bridge extends WP_UnitTestCase {
 			],
 		];
 		$schema          = $this->bridge->validate_schema( $schema_with_ref );
-		$this->assertEquals( [
-			'type'       => 'object',
-			'properties' => new \stdClass(),
-		], $schema );
+		$this->assertNull( $schema );
 	}
 
 	/**
