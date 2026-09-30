@@ -275,7 +275,7 @@ class Ability_Bridge {
 				__METHOD__,
 				sprintf(
 					/* translators: %s: Ability name. */
-					esc_html__( 'The ability "%s" was omitted from WebMCP because its input schema exceeds five schema levels or contains an unsupported $ref.', 'webmcp-abilities' ),
+					esc_html__( 'The ability "%s" was omitted from WebMCP because its input schema contains an unsupported $ref.', 'webmcp-abilities' ),
 					esc_html( $name )
 				),
 				'0.8.0'
@@ -355,7 +355,7 @@ class Ability_Bridge {
 
 	/**
 	 * Validate a JSON Schema object for use as a tool inputSchema.
-	 * Rejects schemas with depth > 5 or unsupported $ref usage.
+	 * Caps child schemas beyond five levels and rejects unsupported $ref usage.
 	 *
 	 * @param array $schema Raw schema from ability definition.
 	 * @return array|null Validated schema, or null for an unsupported schema.
@@ -371,12 +371,18 @@ class Ability_Bridge {
 			return $empty;
 		}
 
-		if ( $this->schema_depth( $schema ) > 5 ) {
+		if ( $this->schema_has_ref( $schema ) ) {
 			return null;
 		}
 
-		if ( $this->schema_has_ref( $schema ) ) {
-			return null;
+		$truncated = false;
+		$schema    = $this->cap_schema_depth( $schema, 1, $truncated );
+		if ( $truncated ) {
+			_doing_it_wrong(
+				__METHOD__,
+				esc_html__( 'The WebMCP input schema was capped at five schema levels. Deeper child schemas were replaced with empty schemas; the ability still validates the full input.', 'webmcp-abilities' ),
+				'0.8.0'
+			);
 		}
 
 		return $this->fix_empty_properties( $schema );
@@ -413,17 +419,19 @@ class Ability_Bridge {
 	}
 
 	/**
-	 * Compute actual schema depth, excluding schema containers and data values.
+	 * Cap actual schema depth, preserving containers and data values.
 	 *
 	 * @param array $schema Schema to inspect.
 	 * @param int   $depth  Current depth (1-based at the top level).
+	 * @param bool  $truncated Whether any child schema was replaced.
+	 * @return array|\stdClass
 	 */
-	private function schema_depth( array $schema, int $depth = 1 ): int {
+	private function cap_schema_depth( array $schema, int $depth, bool &$truncated ) {
 		if ( $depth > 5 ) {
-			return $depth;
+			$truncated = true;
+			return new \stdClass();
 		}
 
-		$max = $depth;
 		foreach ( $schema as $keyword => $value ) {
 			if ( ! is_array( $value ) ) {
 				continue;
@@ -431,20 +439,16 @@ class Ability_Bridge {
 
 			// Maps and lists are containers; only their child schemas add a level.
 			if ( in_array( $keyword, [ 'properties', 'patternProperties', 'definitions', '$defs', 'dependentSchemas', 'dependencies', 'allOf', 'anyOf', 'oneOf', 'prefixItems' ], true ) || ( 'items' === $keyword && ( [] === $value || array_keys( $value ) === range( 0, count( $value ) - 1 ) ) ) ) {
-				foreach ( $value as $child ) {
+				foreach ( $value as $key => $child ) {
 					if ( is_array( $child ) && ( 'dependencies' !== $keyword || ( [] !== $child && array_keys( $child ) !== range( 0, count( $child ) - 1 ) ) ) ) {
-						$max = max( $max, $this->schema_depth( $child, $depth + 1 ) );
+						$schema[ $keyword ][ $key ] = $this->cap_schema_depth( $child, $depth + 1, $truncated );
 					}
 				}
 			} elseif ( in_array( $keyword, [ 'items', 'additionalItems', 'additionalProperties', 'unevaluatedItems', 'unevaluatedProperties', 'contains', 'propertyNames', 'not', 'if', 'then', 'else', 'contentSchema' ], true ) ) {
-				$max = max( $max, $this->schema_depth( $value, $depth + 1 ) );
-			}
-
-			if ( $max > 5 ) {
-				return $max;
+				$schema[ $keyword ] = $this->cap_schema_depth( $value, $depth + 1, $truncated );
 			}
 		}
-		return $max;
+		return $schema;
 	}
 
 	/**

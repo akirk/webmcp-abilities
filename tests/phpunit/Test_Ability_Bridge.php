@@ -410,9 +410,11 @@ class Test_Ability_Bridge extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Verifies validate_schema rejects excessive depth.
+	 * Preserves fields and requirements while replacing deeper schemas with {}.
+	 *
+	 * @expectedIncorrectUsage WebMCP\Ability_Bridge::validate_schema
 	 */
-	public function test_validate_schema_rejects_excessive_depth(): void {
+	public function test_validate_schema_caps_excessive_depth(): void {
 		$deep = [ 'type' => 'string' ];
 		for ( $level = 0; $level < 5; ++$level ) {
 			$deep = [
@@ -420,7 +422,46 @@ class Test_Ability_Bridge extends WP_UnitTestCase {
 				'properties' => [ 'child' => $deep ],
 			];
 		}
-		$this->assertNull( $this->bridge->validate_schema( $deep ) );
+		$expected = new \stdClass();
+		for ( $level = 0; $level < 5; ++$level ) {
+			$expected = [
+				'type'       => 'object',
+				'properties' => [ 'child' => $expected ],
+			];
+		}
+		$deep['required']     = [ 'child' ];
+		$expected['required'] = [ 'child' ];
+		$this->assertEquals( $expected, $this->bridge->validate_schema( $deep ) );
+		$this->assertStringContainsString( '"child":{}', wp_json_encode( $this->bridge->validate_schema( $deep ) ) );
+	}
+
+	/**
+	 * Truncation covers composition lists, tuple items, and individual schemas.
+	 *
+	 * @expectedIncorrectUsage WebMCP\Ability_Bridge::validate_schema
+	 */
+	public function test_validate_schema_caps_mixed_child_schemas(): void {
+		$schema   = [
+			'allOf' => [ [ 'type' => 'string' ] ],
+			'items' => [ [ 'type' => 'integer' ] ],
+			'not'   => [ 'type' => 'null' ],
+		];
+		$expected = [
+			'allOf' => [ new \stdClass() ],
+			'items' => [ new \stdClass() ],
+			'not'   => new \stdClass(),
+		];
+		for ( $level = 0; $level < 4; ++$level ) {
+			$schema   = [
+				'type'  => 'array',
+				'items' => $schema,
+			];
+			$expected = [
+				'type'  => 'array',
+				'items' => $expected,
+			];
+		}
+		$this->assertEquals( $expected, $this->bridge->validate_schema( $schema ) );
 	}
 
 	/**
@@ -450,11 +491,11 @@ class Test_Ability_Bridge extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Unsupported schemas hide the tool and explain why through WordPress diagnostics.
+	 * Deep schemas remain discoverable with truncated input guidance.
 	 *
-	 * @expectedIncorrectUsage WebMCP\Ability_Bridge::convert
+	 * @expectedIncorrectUsage WebMCP\Ability_Bridge::validate_schema
 	 */
-	public function test_convert_omits_excessively_deep_schema(): void {
+	public function test_convert_preserves_excessively_deep_schema(): void {
 		$schema = [ 'type' => 'string' ];
 		for ( $level = 0; $level < 5; ++$level ) {
 			$schema = [
@@ -473,7 +514,9 @@ class Test_Ability_Bridge extends WP_UnitTestCase {
 				'execute_callback'    => '__return_null',
 			]
 		);
-		$this->assertNull( $tool );
+		$this->assertSame( 'test/deep-schema', $tool['name'] );
+		$this->assertSame( 'object', $tool['inputSchema']['type'] );
+		$this->assertStringContainsString( '"child":{}', wp_json_encode( $tool['inputSchema'] ) );
 	}
 
 	/**

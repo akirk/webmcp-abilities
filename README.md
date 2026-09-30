@@ -267,7 +267,7 @@ add_filter( 'wmcp_should_enqueue', fn( $enqueue, $context ) => 'admin' !== $cont
 - **Per-ability visibility** — every tool is public, signed-in only, or hidden; the site owner has the last word, except over an ability that withdrew itself
 - **Rate limiting** per user+tool pair plus global IP-based discovery limit
 - **Input size cap** — 100 KB max payload (filterable)
-- **Schema validation** — five schema levels maximum and unsupported `$ref` rejection; unsupported schemas omit the tool and emit a WordPress diagnostic
+- **Schema validation** — schemas capped at five levels with deeper child schemas replaced by `{}`; unsupported `$ref` schemas omit the tool. Both emit a WordPress diagnostic
 - **IP-based rate limiting** on tool discovery (REMOTE_ADDR only, no proxy header trust)
 
 ---
