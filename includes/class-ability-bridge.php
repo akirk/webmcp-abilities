@@ -22,7 +22,7 @@ class Ability_Bridge {
 	const CACHE_VERSION_OPTION = 'wmcp_bridge_cache_version';
 
 	/** Tool-definition shape version, bumped when cached output changes. */
-	const CACHE_SCHEMA_VERSION = 2;
+	const CACHE_SCHEMA_VERSION = 3;
 
 	/**
 	 * Plugin settings instance.
@@ -401,16 +401,21 @@ class Ability_Bridge {
 	}
 
 	/**
-	 * Compute the maximum nesting depth of an array/schema.
+	 * Compute schema nesting depth, excluding value and annotation arrays.
 	 *
 	 * @param array $schema Schema to inspect.
 	 * @param int   $depth  Current depth (1-based at the top level).
+	 * @param bool  $schema_map Whether keys are property names rather than schema keywords.
 	 */
-	private function schema_depth( array $schema, int $depth = 1 ): int {
+	private function schema_depth( array $schema, int $depth = 1, bool $schema_map = false ): int {
 		$max = $depth;
-		foreach ( $schema as $value ) {
+		foreach ( $schema as $keyword => $value ) {
+			// These keywords contain values or field names, not child schemas.
+			if ( ! $schema_map && in_array( $keyword, [ 'enum', 'const', 'default', 'examples', 'required', 'type' ], true ) ) {
+				continue;
+			}
 			if ( is_array( $value ) ) {
-				$child = $this->schema_depth( $value, $depth + 1 );
+				$child = $this->schema_depth( $value, $depth + 1, ! $schema_map && in_array( $keyword, [ 'properties', 'patternProperties', 'definitions', '$defs', 'dependentSchemas' ], true ) );
 				$max   = max( $max, $child );
 			}
 		}
