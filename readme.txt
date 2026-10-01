@@ -53,7 +53,7 @@ The WebMCP standard requires a secure context. The front-end bridge will not loa
 
 = For Plugin Developers =
 
-Any ability registered via `wp_register_ability()` automatically becomes a WebMCP tool. The site admin must enable it in **Settings → WebMCP** (third-party tools default to hidden on fresh installs).
+Any ability registered via `wp_register_ability()` automatically becomes a WebMCP tool, available by default to signed-in users who pass its permission callback. The site admin can adjust visibility in **Settings → WebMCP**. Explicit plugin opt-outs and saved admin visibility choices are respected.
 
 `
 // Register your category first (on the wp_abilities_api_categories_init hook).
