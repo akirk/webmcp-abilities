@@ -1,348 +1,200 @@
-# WebMCP Abilities for WordPress
+# WebMCP Abilities
+- Contributors: codeatlantic
+- Tags: ai, agents, webmcp, abilities, mcp
+- Requires at least: 6.9
+- Tested up to: 6.9
+- Requires PHP: 8.0
+- Stable tag: 0.8.0
+- License: GPL-2.0-or-later
+- License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-[![WordPress](https://img.shields.io/badge/WordPress-6.9%2B-21759B?logo=wordpress&logoColor=white)](https://wordpress.org)
-[![PHP](https://img.shields.io/badge/PHP-8.0%2B-777BB4?logo=php&logoColor=white)](https://php.net)
-[![Chrome](https://img.shields.io/badge/Chrome-146%2B-4285F4?logo=googlechrome&logoColor=white)](https://developer.chrome.com/blog/webmcp-epp)
-[![License](https://img.shields.io/badge/License-GPL--2.0--or--later-blue)](LICENSE)
-[![Tests](https://img.shields.io/badge/Tests-51%20passing-brightgreen)](#testing)
-[![WebMCP Spec](https://img.shields.io/badge/spec-WebMCP%20W3C-orange)](https://webmachinelearning.github.io/webmcp/)
+Bridges WordPress Abilities to the WebMCP browser API, making your site's capabilities discoverable by AI agents in compatible browsers.
 
-**Turn any WordPress site into a structured tool server for AI agents** — no custom API, no scraping, no prompt engineering required.
+## Description
 
-> Already running in production on [wppopupmaker.com](https://wppopupmaker.com). See the [WordPress core WebMCP experiment](https://github.com/WordPress/ai/pull/224) for where this is heading.
+**WebMCP Abilities** connects the [WordPress Abilities API](https://developer.wordpress.org/apis/abilities-api/) to the [WebMCP browser standard](https://webmachinelearning.github.io/webmcp/), allowing AI agents in compatible browsers to discover and invoke your site's registered capabilities as structured tools.
 
-**[Product Page](https://code-atlantic.com/products/webmcp-abilities-for-wordpress/)** · **[GitHub](https://github.com/code-atlantic/webmcp-abilities)** · **[WordPress.org](https://wordpress.org/plugins/webmcp-abilities/)** *(pending review)*
+Already running in production on [wppopupmaker.com](https://wppopupmaker.com). The WordPress core team is exploring the same direction — see the [WebMCP adapter experiment](https://github.com/WordPress/ai/pull/224).
 
-WebMCP Abilities connects the [WordPress Abilities API](https://developer.wordpress.org/apis/abilities-api/) to the [WebMCP browser standard](https://webmachinelearning.github.io/webmcp/), so AI agents running in Chrome 146+ can discover and call your site's capabilities as reliable, schema-driven tools.
+[Learn more on the product page](https://code-atlantic.com/products/webmcp-abilities-for-wordpress/).
 
-### Demo
+[Watch the demo on YouTube](https://youtu.be/7A34ZNz2bMM)
 
-[![WebMCP Abilities Demo](https://img.youtube.com/vi/7A34ZNz2bMM/maxresdefault.jpg)](https://youtu.be/7A34ZNz2bMM)
+### How It Works
 
-> Gemini 2.5 Flash discovering and calling WordPress tools via Chrome's `document.modelContext` API on a live production site.
+When enabled, the plugin:
 
----
+1. Registers a lightweight JavaScript bridge on your site's front end
+2. Fetches all registered WordPress Abilities visible to the current user
+3. Exposes them to the browser's AI agent via `document.modelContext.registerTool()`
+4. Agents can then invoke tools, which execute server-side via a secure REST API
 
-## What Is WebMCP?
+### Built-in Tools
 
-[WebMCP](https://webmachinelearning.github.io/webmcp/) is a browser API (`document.modelContext`) that lets websites register structured tools directly discoverable by AI agents. Instead of agents clicking through UIs, taking screenshots, and guessing at intent, they get:
+The plugin ships four starter tools that work immediately — no other plugins needed:
 
-- **Structured tool definitions** with JSON Schema inputs
-- **Direct execution** via `document.modelContext.registerTool()`
-- **Security enforced by the browser** — same-origin, HTTPS-only
-- **~98% task accuracy** vs ~45% for vision-based approaches
+* **Search Posts** — Search published posts by keyword (public)
+* **Get Post** — Retrieve a post by ID or slug (public)
+* **Get Categories** — List all post categories (public)
+* **Submit Comment** — Submit a comment on a post (respects WordPress comment settings)
 
-> Currently in Early Preview — enable at `chrome://flags` → **WebMCP for testing** in Chrome 146+.
+### Related Integrations
 
-**References:**
-- [WebMCP W3C Specification](https://webmachinelearning.github.io/webmcp/)
-- [Google Chrome Blog: WebMCP Early Preview](https://developer.chrome.com/blog/webmcp-epp)
-- [GitHub: webmachinelearning/webmcp](https://github.com/webmachinelearning/webmcp)
+* **Complements [WordPress MCP Adapter](https://github.com/WordPress/mcp-adapter)** — which handles CLI and API agents via the MCP protocol. This plugin handles browser-based agents.
+* **Complements [wmcp.dev](https://www.wmcp.dev/)** — which handles declarative form annotations. This plugin handles registered Abilities as imperative tools.
 
----
+### Browser Support
 
-## What This Plugin Does
+Open your WordPress site in the ChatGPT desktop app's built-in browser to let ChatGPT Work or Codex discover and use its WebMCP tools, using your signed-in WordPress session. Site tools must be enabled and available for your model and workspace. See [ChatGPT's Site tools documentation](https://learn.chatgpt.com/docs/webmcp) for current availability and setup.
 
-```
-WordPress Site                          AI Agent (Claude, ChatGPT, etc.)
-─────────────────                       ──────────────────────────────────
-┌──────────────────────┐                ┌────────────────────────────────┐
-│  WP Abilities API    │                │  Chrome 146+ browser           │
-│  (register tools     │──── bridge ───▶│  document.modelContext         │
-│   with schema +      │                │  .registerTool(...)            │
-│   permissions)       │                └────────────────────────────────┘
-└──────────────────────┘                          │
-                                                  │ tool call
-                                                  ▼
-                                        ┌────────────────────────────────┐
-                                        │  POST /wp-json/webmcp/v1/      │
-                                        │  execute/{ability}             │
-                                        │  with nonce + auth             │
-                                        └────────────────────────────────┘
-```
+Chrome 146 or higher also supports WebMCP with the testing flag enabled. In browsers without WebMCP support, the plugin loads but silently does nothing — no errors.
 
-1. **Plugins register WordPress Abilities** — structured capabilities with labels, descriptions, JSON Schema inputs, permission callbacks, and execute callbacks.
-2. **This plugin bridges them to WebMCP** — the bridge script calls `document.modelContext.registerTool()` for each exposed ability. It loads on the front end and on wp-admin screens, where a logged-in user has the capabilities most abilities check for.
-3. **AI agents discover and call tools** — structured JSON in, structured JSON out. No DOM parsing. No screenshots.
+### Secure Context Required
 
----
+The WebMCP standard requires a secure context. The front-end bridge will not load on ordinary HTTP sites. Browsers make an exception for localhost and loopback addresses used for local development, and the plugin supports that exception.
 
-## Built-in Tools
+### For Plugin Developers
 
-Four starter tools are included out of the box:
-
-| Tool | Description | Auth |
-|------|-------------|------|
-| `wp/search-posts` | Full-text search across published posts | Public |
-| `wp/get-post` | Retrieve a post by ID or slug with full content | Public |
-| `wp/get-categories` | List all categories with counts and descriptions | Public |
-| `wp/submit-comment` | Submit a comment (respects WP comment settings) | Configurable |
-
-Disable all built-ins with one filter:
-```php
-add_filter( 'wmcp_include_builtin_tools', '__return_false' );
-```
-
----
-
-## Installation
-
-### Requirements
-
-- WordPress **6.9+** (requires the Abilities API)
-- PHP **8.0+**
-- **A secure context** — HTTPS in production; HTTP is supported on localhost and loopback addresses for local development
-- Chrome **146+** with WebMCP flag enabled (for AI agents)
-
-### From Source
-
-```bash
-git clone https://github.com/code-atlantic/webmcp-abilities.git
-cd webmcp-abilities
-composer install --no-dev
-```
-
-Upload to `wp-content/plugins/webmcp-abilities/` and activate.
-
----
-
-## Registering Custom Tools
-
-Any plugin can expose tools to AI agents by registering WordPress Abilities. First register your category, then your abilities:
+Any ability registered via `wp_register_ability()` automatically becomes a WebMCP tool, available by default to signed-in users who pass its permission callback. The site admin can adjust visibility in **Settings → WebMCP**. Explicit plugin opt-outs and saved admin visibility choices are respected.
 
 ```php
-// 1. Register your category.
+// Register your category first (on the wp_abilities_api_categories_init hook).
 add_action( 'wp_abilities_api_categories_init', function () {
     wp_register_ability_category( 'my-plugin', array(
-        'label'       => __( 'My Plugin', 'my-plugin' ),
-        'description' => __( 'Tools provided by My Plugin.', 'my-plugin' ),
+        'label'       => 'My Plugin',
+        'description' => 'Tools provided by My Plugin.',
     ) );
 } );
 
-// 2. Register abilities that use the category.
+// Then register abilities (on the wp_abilities_api_init hook).
 add_action( 'wp_abilities_api_init', function () {
-    wp_register_ability(
-        'my-plugin/get-products',
-        array(
-            'label'               => __( 'Get Products', 'my-plugin' ),
-            'description'         => __( 'Search the product catalog by keyword.', 'my-plugin' ),
-            'category'            => 'my-plugin',
-            'input_schema'        => array(
-                'type'       => 'object',
-                'properties' => array(
-                    'query' => array( 'type' => 'string', 'description' => 'Search term' ),
-                    'limit' => array( 'type' => 'integer', 'default' => 10 ),
-                ),
-                'required'   => array( 'query' ),
-            ),
-            'execute_callback'    => 'my_plugin_get_products',
-            'permission_callback' => '__return_true',
-            'meta'                => array( 'wmcp_visibility' => 'public' ),
-        )
-    );
+    wp_register_ability( 'my-plugin/my-action', array(
+        'label'               => 'My Action',
+        'description'         => 'Does something useful for agents.',
+        'category'            => 'my-plugin',
+        'input_schema'        => array( ... ),
+        'execute_callback'    => function( $input ) { ... },
+        'permission_callback' => function() { return current_user_can( 'read' ); },
+        'meta'                => array( 'wmcp_visibility' => 'public' ),
+    ) );
 } );
 ```
 
-> **Important:** WordPress requires the category to be registered via `wp_register_ability_category()` before any ability can use it. Abilities with unregistered categories are silently dropped by core. You can also use the `'webmcp'` category registered by this plugin.
+**Important:** WordPress requires the category to be registered via `wp_register_ability_category()` before any ability can use it. Abilities with unregistered categories are silently dropped by WordPress core. Alternatively, you can use the `'webmcp'` category registered by this plugin.
 
-WebMCP Abilities picks up any registered ability automatically: a plugin's tools are
-advertised to signed-in agents as soon as the plugin is active, with no trip to the
-settings page. There is no allowlist to tick, because an allowlist duplicates work the
-abilities' own `permission_callback`s already do — an agent is only ever shown a tool
-whose permission callback passes for the visitor behind it.
+Visibility options via the `meta` array:
 
-### Visibility Control
+* `'wmcp_visibility' => 'public'` — advertised to logged-out visitors too, if the site allows public discovery
+* `'wmcp_visibility' => 'authenticated'` (default) — advertised only to signed-in users
+* `'wmcp_visibility' => 'private'` — never advertised, and the admin cannot override it
 
-Three states, settable by the plugin that registers the ability and overridable per
-ability by the site administrator on the **Tools** tab of **Settings → WebMCP** — an eye
-to hide a tool or show it again, and a checkbox to advertise it to logged-out visitors as
-well. Both apply as you click them; a hidden tool's checkbox is disabled, because a tool
-nobody is shown reaches nobody:
+An ability is advertised as soon as its plugin is active; there is no allowlist to tick. On the **Tools** tab of the settings page the admin can hide any ability with the eye, or tick its box to advertise it to logged-out visitors as well.
 
-```php
-// Anyone: advertised to logged-out visitors too, if the site allows public discovery
-'meta' => array( 'wmcp_visibility' => 'public' )
+## Installation
 
-// Signed-in users only: the default when nothing is declared
-'meta' => array( 'wmcp_visibility' => 'authenticated' )
+1. Upload the `webmcp-abilities` folder to `/wp-content/plugins/`
+2. Activate the plugin through the **Plugins** screen in WordPress
+3. Go to **Settings → WebMCP** to configure tool visibility and public discovery
+4. Ensure your production site is served over HTTPS (HTTP loopback URLs also work for local development)
 
-// Nobody: never advertised, and the administrator cannot override this
-'meta' => array( 'wmcp_visibility' => 'private' )
-```
+### Requirements
 
-`authenticated` is the default because being *executable* by a logged-out visitor is not
-the same as being worth *advertising* to one: an ability with
-`'permission_callback' => '__return_true'` is fine to run anonymously but need not appear
-in every passing agent's tool list.
+* WordPress 6.9 or higher (requires the Abilities API)
+* PHP 8.0 or higher
+* A browser with WebMCP support, such as the ChatGPT desktop app's built-in browser or Chrome 146+ with the testing flag enabled
 
-The two levels compose. Site-wide, **Tool Discovery** decides whether logged-out visitors
-see anything at all; per ability, `public` decides whether this particular tool is part of
-what they see. An ability marked `public` on a site with public discovery off stays
-invisible to them.
+## Frequently Asked Questions
 
-An ability that opted out of the [MCP Adapter](https://github.com/WordPress/mcp-adapter)
-with `meta.mcp.public = false` is treated as `private` here too, so a tool only has to
-withdraw once.
+### Do I need to configure anything?
 
-Both the resolved state and the administrator's choice can be overridden in code:
+Activate the plugin and four built-in tools work immediately. Third-party abilities are available by default to signed-in users who pass their permission callbacks. Use Settings → WebMCP to adjust visibility and enable public discovery.
 
-```php
-add_filter( 'wmcp_tool_visibility', function ( $visibility, $name, $ability ) {
-	return 'my-plugin/danger' === $name ? 'private' : $visibility;
-}, 10, 3 );
-```
+### Is this safe?
 
----
+Yes. Every tool is advertised to signed-in users only unless it is explicitly marked public, and the admin can hide any tool outright. Each tool's own `permission_callback` enforces WordPress capabilities at execution time.
 
-## REST API Endpoints
+### Can anonymous visitors use tools?
 
-The plugin registers three endpoints under `/wp-json/webmcp/v1/`:
+It depends on the tool. Public tools (like the built-in search and category tools) can be executed by anyone. Write tools and tools with custom permission callbacks may require authentication. A tool a visitor is not shown is also a tool that visitor cannot run.
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/tools` | List all tools visible to the current user |
-| `POST` | `/execute/{ability}` | Run a tool (nonce required for write tools) |
-| `GET` | `/nonce` | Refresh the execution nonce |
+### Does this work with the WordPress MCP Adapter?
 
-The `/tools` endpoint supports:
-- **Conditional requests** (`If-None-Match` / `ETag`) for efficient polling
-- **`Cache-Control: private, max-age=300`** to reduce load
-- **Public discovery mode** (opt-in) for unauthenticated tool listing
+Yes — they are complementary. Built-in tools are registered as real WordPress Abilities, so they also appear via the MCP Adapter for CLI/API agents. The two plugins serve different transports (browser vs. API/CLI).
 
----
+### What about the `.well-known/webmcp.json` manifest?
 
-## Admin Settings
+This feature (which allows agents to discover tools before visiting the page) is planned for a future release. In the current version, agents discover tools when they load a page on your site.
 
-**Settings → WebMCP** provides:
+## Screenshots
 
-- **Enable/disable** the bridge globally
-- **Public tool discovery** — allow unauthenticated agents to list tools (execution still requires auth)
-- **Per-tool toggle** — hide specific tools from discovery without unregistering them
-- **Status panel** — HTTPS check, Abilities API availability, registered count
+1. The WebMCP Abilities settings page — the Tools tab lists every registered ability with an eye to hide it and a checkbox to open it up to logged-out visitors; the Settings tab enables the bridge and controls tool discovery.
 
----
+## Changelog
 
-## Hooks & Filters
+### 0.8.0
 
-```php
-// Allow/block a tool from appearing at all
-add_filter( 'wmcp_expose_ability', function ( $expose, $name, $ability ) {
-    return $name !== 'wp/submit-comment'; // hide comment tool
-}, 10, 3 );
+* Map standard WordPress ability annotations to WebMCP tool hints
+* Allow WebMCP on secure HTTP loopback origins used for local development
+* Improve the tools table layout, discovery summary, navigation accessibility, and control labels
+* Show reliable save feedback and serialize settings updates to prevent races
 
-// Customize the tool definition before it's sent to the browser
-add_filter( 'wmcp_tool_definition', function ( $tool, $name, $ability ) {
-    $tool['description'] .= ' Powered by Acme Corp.';
-    return $tool;
-}, 10, 3 );
+### 0.7.0
 
-// Block execution with context (user ID, input)
-add_filter( 'wmcp_allow_execution', function ( $allow, $name, $input, $user_id ) {
-    if ( $name === 'my-plugin/delete-data' && ! is_vip_user( $user_id ) ) {
-        return new WP_Error( 'forbidden', 'VIP only.' );
-    }
-    return $allow;
-}, 10, 4 );
+* Abilities registered by a plugin are advertised as soon as the plugin is active — no allowlist to tick
+* `wmcp_visibility` is now three states: `public`, `authenticated` (the default) and `private`
+* New: advertise a tool to signed-in users only, without hiding it entirely
+* An ability that opted out with `meta.mcp.public = false` is honoured here too
+* Settings page rebuilt with WordPress tabs and a table: an eye to hide a tool, a checkbox to open it to logged-out visitors
+* Execution now applies the same visibility rules as discovery
+* New `wmcp_tool_visibility` filter has the final say over both the ability and the admin
+* Upgrades convert an existing exposed-tools list, so tools left unticked stay hidden
 
-// Adjust rate limits
-add_filter( 'wmcp_rate_limit', fn() => 30 );          // requests per minute per user/tool
-add_filter( 'wmcp_rate_limit_window', fn() => 60 );   // window in seconds
+### 0.6.1
 
-// Disable built-in tools
-add_filter( 'wmcp_include_builtin_tools', '__return_false' );
+* Security: third-party abilities now default to hidden on fresh installs
+* Only built-in tools (search, get post, categories, comments) are exposed by default
+* Admins must explicitly enable new tools via Settings → WebMCP
 
-// Conditionally load the bridge script. It loads on the front end and in
-// wp-admin; $context is 'front' or 'admin'.
-add_filter( 'wmcp_should_enqueue', fn( $enqueue, $context ) => 'admin' !== $context, 10, 2 );
-```
+### 0.6.0
 
----
+* Renamed plugin from "WebMCP for WordPress" to "WebMCP Abilities for WordPress" for WordPress.org compliance
+* Updated text domain, slugs, and all references
 
-## Security
+### 0.5.0
 
-- **Secure context enforced** — the bridge loads over HTTPS, plus browser-trusted HTTP loopback origins for local development
-- **Nonce verification** on write tool execute requests (`X-WP-Nonce` header) — read-only tools skip this
-- **Permission callbacks** re-evaluated at execution time (not just discovery)
-- **Private visibility** flag prevents internal abilities from appearing
-- **Per-ability visibility** — every tool is public, signed-in only, or hidden; the site owner has the last word, except over an ability that withdrew itself
-- **Rate limiting** per user+tool pair plus global IP-based discovery limit
-- **Input size cap** — 100 KB max payload (filterable)
-- **Schema validation** — schemas capped at five levels with deeper child schemas replaced by `{}`; unsupported `$ref` schemas omit the tool. Both emit a WordPress diagnostic
-- **IP-based rate limiting** on tool discovery (REMOTE_ADDR only, no proxy header trust)
+* TypeScript conversion: front-end bridge rewritten in TypeScript with full type safety
+* Build pipeline: @wordpress/scripts v31.5 with webpack, output to dist/ with .asset.php manifests
+* PHPCS compliance: CodeAtlantic coding standards, zero violations
+* PHPDoc: comprehensive documentation across all PHP source and test files
+* Cleanup: removed stale build artifacts
 
----
+### 0.4.0
 
-## Testing
+* Initial release
+* Four built-in tools: wp/search-posts, wp/get-post, wp/get-categories, wp/submit-comment
+* Per-tool visibility control via Settings
+* Public discovery toggle
+* Rate limiting: 30 executions/min per user, 100 discovery requests/min per IP
+* Full WordPress Abilities API integration
+* ETag-based client-side caching (24h TTL)
 
-51 PHPUnit integration tests run against a real WordPress 6.9 environment via [wp-env](https://developer.wordpress.org/block-editor/reference-guides/packages/packages-env/).
+## Upgrade Notice
 
-```bash
-# Start the test environment
-npx wp-env start
+### 0.8.0
+Improves WebMCP compatibility, local-development support, and the accessibility and reliability of the settings interface.
 
-# Run the suite
-npx wp-env run tests-cli \
-  "bash -c 'cd /var/www/html/wp-content/plugins/webmcp-abilities && WP_TESTS_DIR=/wordpress-phpunit ./vendor/bin/phpunit'"
-```
+### 0.7.0
+Abilities now advertise themselves instead of waiting to be enabled. Any tool you had already unticked stays hidden; everything else becomes visible to signed-in agents only, never to logged-out visitors unless you tick its box.
 
-Test coverage:
-- `Ability_Bridge` — visibility filtering, permission checks, schema validation, filters
-- `Builtin_Tools` — all four tools including edge cases and sanitization
-- `REST_API` — all endpoints: auth, nonce, rate limiting, execution lifecycle
-- `Rate_Limiter` — per-user and global ceiling enforcement
+### 0.6.0
+Plugin renamed to "WebMCP Abilities for WordPress". Please update any references in your code or configuration.
 
----
+### 0.5.0
+TypeScript rewrite, PHPCS compliance, improved build pipeline.
 
-## Architecture
+### 0.4.0
+Initial release.
 
-```
-webmcp-abilities/
-├── webmcp-abilities.php          # Bootstrap, version guard
-├── includes/
-│   ├── class-plugin.php       # Singleton wiring
-│   ├── class-settings.php     # Options: enabled, discovery, per-tool visibility
-│   ├── class-ability-bridge.php  # WP_Ability → WebMCP tool definition
-│   ├── class-builtin-tools.php   # 4 starter abilities
-│   ├── class-rest-api.php     # /tools, /execute, /nonce endpoints
-│   ├── class-rate-limiter.php # Transient-based rate limiting
-│   └── class-admin-page.php   # Settings UI
-├── src/
-│   ├── webmcp-abilities.ts       # TypeScript source (document.modelContext bridge)
-│   └── types/webmcp.d.ts             # WebMCP type declarations
-├── dist/                             # Built output (@wordpress/scripts + webpack)
-│   ├── webmcp-abilities.js       # Compiled bundle
-│   └── webmcp-abilities.asset.php # WP dependency manifest with version hash
-└── tests/phpunit/             # 51 integration tests
-```
+## Development
 
----
-
-## Roadmap
-
-- [ ] MCP Adapter integration (expose tools to CLI/API agents, not just browser)
-- [ ] WooCommerce tools (products, cart, checkout)
-- [ ] BuddyPress / bbPress community tools
-- [ ] Declarative WebMCP API support (HTML form population)
-- [x] Tool annotations (`readonly`, `destructive`, `idempotent`)
-- [x] WordPress.org plugin directory submission
-
----
-
-## Contributing
-
-PRs welcome. Please include tests for any new tools or behavior changes.
-
-```bash
-composer install
-npx wp-env start
-# make changes
-npx wp-env run tests-cli "..."  # verify green
-```
-
----
-
-## License
-
-GPL-2.0-or-later — see [LICENSE](LICENSE) or [gnu.org/licenses/gpl-2.0](https://www.gnu.org/licenses/gpl-2.0.html).
-
-Built by [Code Atlantic](https://code-atlantic.com) · [Product Page](https://code-atlantic.com/products/webmcp-abilities-for-wordpress/).
+See [DEVELOPMENT.md](DEVELOPMENT.md) for architecture, hooks, REST API details, and testing instructions.
