@@ -8,11 +8,11 @@
 - License: GPL-2.0-or-later
 - License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Bridges WordPress Abilities to the WebMCP browser API, making your site's capabilities discoverable by AI agents in Chrome 146+.
+Bridges WordPress Abilities to the WebMCP browser API, making your site's capabilities discoverable by AI agents in compatible browsers.
 
 ## Description
 
-**WebMCP Abilities** connects the [WordPress Abilities API](https://developer.wordpress.org/apis/abilities-api/) to the [WebMCP browser standard](https://webmachinelearning.github.io/webmcp/), allowing AI agents running in Chrome 146+ to discover and invoke your site's registered capabilities as structured tools.
+**WebMCP Abilities** connects the [WordPress Abilities API](https://developer.wordpress.org/apis/abilities-api/) to the [WebMCP browser standard](https://webmachinelearning.github.io/webmcp/), allowing AI agents in compatible browsers to discover and invoke your site's registered capabilities as structured tools.
 
 Already running in production on [wppopupmaker.com](https://wppopupmaker.com). The WordPress core team is exploring the same direction — see the [WebMCP adapter experiment](https://github.com/WordPress/ai/pull/224).
 
@@ -38,14 +38,16 @@ The plugin ships four starter tools that work immediately — no other plugins n
 * **Get Categories** — List all post categories (public)
 * **Submit Comment** — Submit a comment on a post (respects WordPress comment settings)
 
-### Ecosystem Fit
+### Related Integrations
 
 * **Complements [WordPress MCP Adapter](https://github.com/WordPress/mcp-adapter)** — which handles CLI and API agents via the MCP protocol. This plugin handles browser-based agents.
 * **Complements [wmcp.dev](https://www.wmcp.dev/)** — which handles declarative form annotations. This plugin handles registered Abilities as imperative tools.
 
 ### Browser Support
 
-WebMCP requires Chrome 146 or higher. On other browsers, the plugin loads but silently does nothing — no errors.
+Open your WordPress site in the ChatGPT desktop app's built-in browser to let ChatGPT Work or Codex discover and use its WebMCP tools, using your signed-in WordPress session. Site tools must be enabled and available for your model and workspace. See [ChatGPT's Site tools documentation](https://learn.chatgpt.com/docs/webmcp) for current availability and setup.
+
+Chrome 146 or higher also supports WebMCP with the testing flag enabled. In browsers without WebMCP support, the plugin loads but silently does nothing — no errors.
 
 ### Secure Context Required
 
@@ -99,7 +101,7 @@ An ability is advertised as soon as its plugin is active; there is no allowlist 
 
 * WordPress 6.9 or higher (requires the Abilities API)
 * PHP 8.0 or higher
-* Chrome 146+ on the visitor's browser for WebMCP to be active
+* A browser with WebMCP support, such as the ChatGPT desktop app's built-in browser or Chrome 146+ with the testing flag enabled
 
 ## Frequently Asked Questions
 
