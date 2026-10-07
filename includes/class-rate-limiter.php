@@ -25,13 +25,14 @@ class Rate_Limiter {
 	const DISCOVERY_WINDOW = 60;
 
 	/**
-	 * Check and increment the execution rate limit for a user.
+	 * Check and increment the execution rate limit for a user (or IP when anonymous).
 	 * Returns true if the request is allowed, false if rate-limited.
 	 *
-	 * @param int    $user_id     The executing user's ID.
+	 * @param int    $user_id      The executing user's ID (0 for anonymous).
 	 * @param string $ability_name The ability being executed.
+	 * @param string $ip           Optional client IP address for anonymous callers.
 	 */
-	public function check_execution( int $user_id, string $ability_name ): bool {
+	public function check_execution( int $user_id, string $ability_name, string $ip = '' ): bool {
 		/**
 		 * Filter the per-ability execution rate limit.
 		 *
@@ -49,8 +50,14 @@ class Rate_Limiter {
 		 */
 		$ceiling = (int) apply_filters( 'wmcp_rate_limit_global_ceiling', 60 );
 
-		$per_ability_key = "exec_{$user_id}_" . md5( $ability_name );
-		$global_key      = "exec_{$user_id}_global";
+		$window = $this->get_window( self::EXECUTION_WINDOW );
+
+		// Anonymous visitors share user_id 0, so bucket them by IP when available
+		// to prevent one visitor from exhausting the limit for every logged-out user.
+		$actor = ( 0 === $user_id && '' !== $ip ) ? 'ip_' . md5( $ip ) : (string) $user_id;
+
+		$per_ability_key = "exec_{$actor}_" . md5( $ability_name );
+		$global_key      = "exec_{$actor}_global";
 
 		$per_ability_count = (int) wp_cache_get( $per_ability_key, self::CACHE_GROUP );
 		$global_count      = (int) wp_cache_get( $global_key, self::CACHE_GROUP );
@@ -59,8 +66,8 @@ class Rate_Limiter {
 			return false;
 		}
 
-		$this->increment( $per_ability_key, self::EXECUTION_WINDOW );
-		$this->increment( $global_key, self::EXECUTION_WINDOW );
+		$this->increment( $per_ability_key, $window );
+		$this->increment( $global_key, $window );
 
 		return true;
 	}
@@ -87,9 +94,23 @@ class Rate_Limiter {
 			return false;
 		}
 
-		$this->increment( $key, self::DISCOVERY_WINDOW );
+		$this->increment( $key, $this->get_window( self::DISCOVERY_WINDOW ) );
 
 		return true;
+	}
+
+	/**
+	 * Return the active rate limit window in seconds.
+	 *
+	 * @param int $default_window Default window in seconds.
+	 */
+	public function get_window( int $default_window = self::EXECUTION_WINDOW ): int {
+		/**
+		 * Filter the rate limit window in seconds.
+		 *
+		 * @param int $window Default 60 seconds.
+		 */
+		return max( 1, (int) apply_filters( 'wmcp_rate_limit_window', $default_window ) );
 	}
 
 	/**
@@ -101,12 +122,12 @@ class Rate_Limiter {
 	 * @param int    $window TTL in seconds.
 	 */
 	private function increment( string $key, int $window ): void {
-		$current = (int) wp_cache_get( $key, self::CACHE_GROUP );
+		$cached = wp_cache_get( $key, self::CACHE_GROUP );
 
-		if ( false === wp_cache_get( $key, self::CACHE_GROUP ) ) {
+		if ( false === $cached ) {
 			wp_cache_set( $key, 1, self::CACHE_GROUP, $window );
 		} else {
-			wp_cache_set( $key, $current + 1, self::CACHE_GROUP, $window );
+			wp_cache_set( $key, (int) $cached + 1, self::CACHE_GROUP, $window );
 		}
 	}
 }

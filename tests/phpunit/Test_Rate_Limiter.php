@@ -98,6 +98,36 @@ class Test_Rate_Limiter extends WP_UnitTestCase {
 		remove_all_filters( 'wmcp_rate_limit' );
 	}
 
+	/**
+	 * Verifies anonymous execution limits are isolated per client IP.
+	 */
+	public function test_anonymous_execution_limits_are_per_ip(): void {
+		add_filter( 'wmcp_rate_limit', function () {
+			return 1;
+		} );
+
+		$this->assertTrue( $this->limiter->check_execution( 0, 'test/public-tool', '198.51.100.1' ) );
+		$this->assertFalse( $this->limiter->check_execution( 0, 'test/public-tool', '198.51.100.1' ) );
+
+		// A second anonymous visitor on a different IP should not be blocked.
+		$this->assertTrue( $this->limiter->check_execution( 0, 'test/public-tool', '198.51.100.2' ) );
+
+		remove_all_filters( 'wmcp_rate_limit' );
+	}
+
+	/**
+	 * Verifies wmcp_rate_limit_window filter customizes the rate limit window.
+	 */
+	public function test_rate_limit_window_filter_is_applied(): void {
+		add_filter( 'wmcp_rate_limit_window', function () {
+			return 120;
+		} );
+
+		$this->assertSame( 120, $this->limiter->get_window() );
+
+		remove_all_filters( 'wmcp_rate_limit_window' );
+	}
+
 	// -------------------------------------------------------------------------
 	// check_discovery()
 	// -------------------------------------------------------------------------

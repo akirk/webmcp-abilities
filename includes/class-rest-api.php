@@ -360,7 +360,7 @@ class REST_API {
 		}
 
 		// Rate limit check.
-		if ( ! $this->rate_limiter->check_execution( $user_id, $ability_name ) ) {
+		if ( ! $this->rate_limiter->check_execution( $user_id, $ability_name, $this->get_client_ip() ) ) {
 			$response = new \WP_REST_Response(
 				[
 					'code'    => 'wmcp_rate_limited',
@@ -368,7 +368,7 @@ class REST_API {
 				],
 				429
 			);
-			$response->header( 'Retry-After', '60' );
+			$response->header( 'Retry-After', (string) $this->rate_limiter->get_window() );
 			return $response;
 		}
 
