@@ -248,20 +248,25 @@ interface ToolsResponse {
 		// wp_set_current_user( 0 ) on any REST request that arrives without a
 		// 'wp_rest' nonce, so cookie auth alone gets treated as logged out and
 		// the endpoint answers 401. This must be the core nonce, not ours.
-		const headers: Record< string, string > = {};
+		function buildHeaders(): Record< string, string > {
+			const headers: Record< string, string > = {};
 
-		if ( restNonce ) {
-			headers[ 'X-WP-Nonce' ] = restNonce;
-		} else {
-			warn(
-				'No wp_rest nonce available — the request will be treated as logged out.'
-			);
+			if ( restNonce ) {
+				headers[ 'X-WP-Nonce' ] = restNonce;
+			} else {
+				warn(
+					'No wp_rest nonce available — the request will be treated as logged out.'
+				);
+			}
+
+			if ( cached?.etag ) {
+				headers[ 'If-None-Match' ] = `"${ cached.etag }"`;
+			}
+
+			return headers;
 		}
 
-		if ( cached?.etag ) {
-			headers[ 'If-None-Match' ] = `"${ cached.etag }"`;
-		}
-
+		let headers = buildHeaders();
 		log( `Requesting ${ toolsEndpoint }` );
 		detail( 'request headers', headers );
 
@@ -271,6 +276,20 @@ interface ToolsResponse {
 				headers,
 				credentials: 'same-origin',
 			} );
+
+			// Refresh and retry once on 403: a cached page may carry an expired
+			// wp_rest nonce even when the visitor has a valid login session.
+			if ( response.status === 403 ) {
+				warn(
+					'Tool discovery returned HTTP 403 — refreshing the nonces and retrying once.'
+				);
+				await refreshNonce();
+				headers = buildHeaders();
+				response = await fetch( toolsEndpoint, {
+					headers,
+					credentials: 'same-origin',
+				} );
+			}
 		} catch ( e ) {
 			// Network error — use cached tools if available.
 			error(
@@ -297,15 +316,26 @@ interface ToolsResponse {
 				warn(
 					'Tool discovery was rejected (HTTP 403). The page’s security token has probably expired — reload the page. If the page is served from a cache, the token it carries may be older than 24h.'
 				);
-			} else if ( response.status === 401 ) {
+				return [];
+			}
+
+			if ( response.status === 401 ) {
 				warn(
 					'Not authenticated for tool discovery (HTTP 401). You are browsing logged out, or the security token was not accepted. Log in to this site, or enable public discovery under Settings → WebMCP. Only tools your user is permitted to see are ever returned.'
 				);
-			} else {
-				error(
-					`Tool discovery failed with HTTP ${ response.status }.`
-				);
+				clearCachedTools();
+				return [];
 			}
+
+			if ( response.status === 404 ) {
+				warn(
+					'Tool discovery endpoint returned HTTP 404 — WebMCP Abilities is disabled.'
+				);
+				clearCachedTools();
+				return [];
+			}
+
+			error( `Tool discovery failed with HTTP ${ response.status }.` );
 
 			if ( cached?.tools.length ) {
 				warn(
