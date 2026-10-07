@@ -124,11 +124,16 @@ class Builtin_Tools {
 		$count = max( 1, min( 50, (int) ( $input['count'] ?? 10 ) ) );
 
 		if ( '' === $query ) {
-			return new \WP_Error( 'invalid_query', __( 'Search query is required.', 'webmcp-abilities' ) );
+			return new \WP_Error(
+				'invalid_query',
+				__( 'Search query is required.', 'webmcp-abilities' ),
+				[ 'status' => 400 ]
+			);
 		}
 
 		$posts = get_posts( [
 			'post_status'    => 'publish',
+			'has_password'   => false,
 			'posts_per_page' => $count,
 			's'              => $query,
 		] );
@@ -208,6 +213,14 @@ class Builtin_Tools {
 	 * @return array|\WP_Error
 	 */
 	public function execute_get_post( array $input ) {
+		if ( empty( $input['id'] ) && empty( $input['slug'] ) ) {
+			return new \WP_Error(
+				'invalid_input',
+				__( 'Post ID or slug is required.', 'webmcp-abilities' ),
+				[ 'status' => 400 ]
+			);
+		}
+
 		$post = null;
 
 		if ( ! empty( $input['id'] ) ) {
@@ -221,12 +234,17 @@ class Builtin_Tools {
 			$post  = $posts[0] ?? null;
 		}
 
-		if ( ! $post instanceof \WP_Post ) {
+		if ( ! $post instanceof \WP_Post || ! is_post_type_viewable( $post->post_type ) ) {
 			return new \WP_Error( 'not_found', __( 'Post not found.', 'webmcp-abilities' ), [ 'status' => 404 ] );
 		}
 
 		// Only return published posts to unauthenticated users.
 		if ( 'publish' !== $post->post_status && ! current_user_can( 'read_post', $post->ID ) ) {
+			return new \WP_Error( 'not_found', __( 'Post not found.', 'webmcp-abilities' ), [ 'status' => 404 ] );
+		}
+
+		// Never expose password-protected post content unless the user can edit the post.
+		if ( post_password_required( $post ) && ! current_user_can( 'edit_post', $post->ID ) ) {
 			return new \WP_Error( 'not_found', __( 'Post not found.', 'webmcp-abilities' ), [ 'status' => 404 ] );
 		}
 
@@ -395,16 +413,33 @@ class Builtin_Tools {
 		$content = sanitize_textarea_field( $input['content'] ?? '' );
 
 		if ( ! $post_id || '' === $content ) {
-			return new \WP_Error( 'invalid_input', __( 'post_id and content are required.', 'webmcp-abilities' ) );
+			return new \WP_Error(
+				'invalid_input',
+				__( 'post_id and content are required.', 'webmcp-abilities' ),
+				[ 'status' => 400 ]
+			);
 		}
 
 		$post = get_post( $post_id );
-		if ( ! $post instanceof \WP_Post || 'publish' !== $post->post_status ) {
-			return new \WP_Error( 'not_found', __( 'Post not found.', 'webmcp-abilities' ) );
+		if (
+			! $post instanceof \WP_Post
+			|| 'publish' !== $post->post_status
+			|| ! is_post_type_viewable( $post->post_type )
+			|| post_password_required( $post )
+		) {
+			return new \WP_Error(
+				'not_found',
+				__( 'Post not found.', 'webmcp-abilities' ),
+				[ 'status' => 404 ]
+			);
 		}
 
 		if ( ! comments_open( $post_id ) ) {
-			return new \WP_Error( 'comments_closed', __( 'Comments are closed on this post.', 'webmcp-abilities' ) );
+			return new \WP_Error(
+				'comments_closed',
+				__( 'Comments are closed on this post.', 'webmcp-abilities' ),
+				[ 'status' => 403 ]
+			);
 		}
 
 		$comment_data = [
@@ -421,8 +456,19 @@ class Builtin_Tools {
 			$comment_data['comment_author_email'] = $user->user_email;
 			$comment_data['comment_author_url']   = $user->user_url;
 		} else {
-			$comment_data['comment_author']       = sanitize_text_field( $input['author_name'] ?? '' );
-			$comment_data['comment_author_email'] = sanitize_email( $input['author_email'] ?? '' );
+			$author_name  = sanitize_text_field( $input['author_name'] ?? '' );
+			$author_email = sanitize_email( $input['author_email'] ?? '' );
+
+			if ( get_option( 'require_name_email' ) && ( '' === $author_name || '' === $author_email ) ) {
+				return new \WP_Error(
+					'require_name_email',
+					__( 'Comment author name and a valid email address are required.', 'webmcp-abilities' ),
+					[ 'status' => 400 ]
+				);
+			}
+
+			$comment_data['comment_author']       = $author_name;
+			$comment_data['comment_author_email'] = $author_email;
 		}
 
 		$comment_id = wp_new_comment( $comment_data, true );
@@ -432,8 +478,8 @@ class Builtin_Tools {
 		}
 
 		$comment = get_comment( $comment_id );
-		$status  = match ( (int) $comment->comment_approved ) {
-			1       => 'approved',
+		$status  = match ( (string) ( $comment->comment_approved ?? '' ) ) {
+			'1'     => 'approved',
 			'spam'  => 'spam',
 			default => 'pending',
 		};
