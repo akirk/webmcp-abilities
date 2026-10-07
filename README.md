@@ -196,13 +196,15 @@ add_filter( 'wmcp_tool_visibility', function ( $visibility, $name, $ability ) {
 
 ## REST API Endpoints
 
-The plugin registers three endpoints under `/wp-json/webmcp/v1/`:
+The plugin registers five endpoints under `/wp-json/webmcp/v1/`:
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `GET` | `/tools` | List all tools visible to the current user |
 | `POST` | `/execute/{ability}` | Run a tool (nonce required for write tools) |
-| `GET` | `/nonce` | Refresh the execution nonce |
+| `GET` | `/nonce` | Refresh the execution and REST nonces |
+| `POST` | `/abilities/visibility` | Show or hide an ability (administrators only) |
+| `POST` | `/abilities/anonymous` | Toggle public discovery for an ability (administrators only) |
 
 The `/tools` endpoint supports:
 - **Conditional requests** (`If-None-Match` / `ETag`) for efficient polling
@@ -261,7 +263,7 @@ add_filter( 'wmcp_should_enqueue', fn( $enqueue, $context ) => 'admin' !== $cont
 ## Security
 
 - **Secure context enforced** — the bridge loads over HTTPS, plus browser-trusted HTTP loopback origins for local development
-- **Nonce verification** on write tool execute requests (`X-WP-Nonce` header) — read-only tools skip this
+- **Nonce verification** on write tool execute requests (`X-WMCP-Nonce` header alongside core's `X-WP-Nonce`) — read-only tools skip the write-tool CSRF check
 - **Permission callbacks** re-evaluated at execution time (not just discovery)
 - **Private visibility** flag prevents internal abilities from appearing
 - **Per-ability visibility** — every tool is public, signed-in only, or hidden; the site owner has the last word, except over an ability that withdrew itself
@@ -299,20 +301,23 @@ Test coverage:
 webmcp-abilities/
 ├── webmcp-abilities.php          # Bootstrap, version guard
 ├── includes/
-│   ├── class-plugin.php       # Singleton wiring
-│   ├── class-settings.php     # Options: enabled, discovery, per-tool visibility
+│   ├── class-plugin.php          # Singleton wiring
+│   ├── class-secure-context.php  # HTTPS and loopback secure-context detection
+│   ├── class-settings.php        # Options: enabled, discovery, per-tool visibility
 │   ├── class-ability-bridge.php  # WP_Ability → WebMCP tool definition
 │   ├── class-builtin-tools.php   # 4 starter abilities
-│   ├── class-rest-api.php     # /tools, /execute, /nonce endpoints
-│   ├── class-rate-limiter.php # Transient-based rate limiting
-│   └── class-admin-page.php   # Settings UI
+│   ├── class-rest-api.php        # /tools, /execute, /nonce, and admin toggle endpoints
+│   ├── class-rate-limiter.php    # Object-cache-based rate limiting
+│   └── class-admin-page.php      # Settings UI
 ├── src/
 │   ├── webmcp-abilities.ts       # TypeScript source (document.modelContext bridge)
-│   └── types/webmcp.d.ts             # WebMCP type declarations
-├── dist/                             # Built output (@wordpress/scripts + webpack)
+│   └── types/webmcp.d.ts         # WebMCP type declarations
+├── dist/                         # Built output (@wordpress/scripts + webpack)
 │   ├── webmcp-abilities.js       # Compiled bundle
 │   └── webmcp-abilities.asset.php # WP dependency manifest with version hash
-└── tests/phpunit/             # 51 integration tests
+└── tests/
+    ├── js/                       # Admin UI script tests
+    └── phpunit/                  # PHPUnit integration tests
 ```
 
 ---
