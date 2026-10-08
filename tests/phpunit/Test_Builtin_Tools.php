@@ -78,6 +78,25 @@ class Test_Builtin_Tools extends WP_UnitTestCase {
 	public function test_search_posts_returns_error_for_empty_query(): void {
 		$result = $this->tools->execute_search_posts( [ 'query' => '' ] );
 		$this->assertWPError( $result );
+		$this->assertSame( [ 'status' => 400 ], $result->get_error_data() );
+	}
+
+	/**
+	 * Verifies search excludes password-protected posts.
+	 */
+	public function test_search_posts_excludes_password_protected_posts(): void {
+		$protected_id = self::factory()->post->create( [
+			'post_title'    => 'Secret Password Post',
+			'post_content'  => 'Confidential content.',
+			'post_status'   => 'publish',
+			'post_password' => 'secret123',
+		] );
+
+		$results = $this->tools->execute_search_posts( [ 'query' => 'Secret Password Post' ] );
+		$this->assertIsArray( $results );
+		$this->assertEmpty( $results );
+
+		wp_delete_post( $protected_id, true );
 	}
 
 	/**
@@ -136,6 +155,16 @@ class Test_Builtin_Tools extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Verifies get post returns 400 error when neither ID nor slug is provided.
+	 */
+	public function test_get_post_returns_error_when_id_and_slug_missing(): void {
+		$result = $this->tools->execute_get_post( [] );
+		$this->assertWPError( $result );
+		$this->assertSame( 'invalid_input', $result->get_error_code() );
+		$this->assertSame( [ 'status' => 400 ], $result->get_error_data() );
+	}
+
+	/**
 	 * Verifies get post returns error for nonexistent ID.
 	 */
 	public function test_get_post_returns_error_for_nonexistent_id(): void {
@@ -155,6 +184,40 @@ class Test_Builtin_Tools extends WP_UnitTestCase {
 		$this->assertWPError( $result );
 
 		wp_delete_post( $draft_id, true );
+	}
+
+	/**
+	 * Verifies get post blocks password-protected posts for anonymous users.
+	 */
+	public function test_get_post_blocks_password_protected_post_for_anonymous(): void {
+		$protected_id = self::factory()->post->create( [
+			'post_status'   => 'publish',
+			'post_password' => 'secret123',
+			'post_content'  => 'Top secret content',
+		] );
+
+		wp_set_current_user( 0 );
+		$result = $this->tools->execute_get_post( [ 'id' => $protected_id ] );
+		$this->assertWPError( $result );
+		$this->assertSame( 'not_found', $result->get_error_code() );
+
+		wp_delete_post( $protected_id, true );
+	}
+
+	/**
+	 * Verifies get post blocks non-viewable internal post types.
+	 */
+	public function test_get_post_blocks_non_viewable_post_type(): void {
+		$menu_item_id = self::factory()->post->create( [
+			'post_type'   => 'nav_menu_item',
+			'post_status' => 'publish',
+		] );
+
+		$result = $this->tools->execute_get_post( [ 'id' => $menu_item_id ] );
+		$this->assertWPError( $result );
+		$this->assertSame( 'not_found', $result->get_error_code() );
+
+		wp_delete_post( $menu_item_id, true );
 	}
 
 	/**
@@ -243,6 +306,7 @@ class Test_Builtin_Tools extends WP_UnitTestCase {
 		] );
 
 		$this->assertWPError( $result );
+		$this->assertSame( [ 'status' => 404 ], $result->get_error_data() );
 
 		wp_delete_user( $user_id );
 	}
@@ -256,6 +320,73 @@ class Test_Builtin_Tools extends WP_UnitTestCase {
 			'content' => '',
 		] );
 		$this->assertWPError( $result );
+		$this->assertSame( [ 'status' => 400 ], $result->get_error_data() );
+	}
+
+	/**
+	 * Verifies comment submission enforces require_name_email for anonymous users.
+	 */
+	public function test_submit_comment_enforces_require_name_email_for_anonymous_user(): void {
+		wp_set_current_user( 0 );
+		update_option( 'require_name_email', 1 );
+
+		$result = $this->tools->execute_submit_comment( [
+			'post_id' => $this->post_id,
+			'content' => 'Anonymous comment without name or email.',
+		] );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'require_name_email', $result->get_error_code() );
+		$this->assertSame( [ 'status' => 400 ], $result->get_error_data() );
+	}
+
+	/**
+	 * Verifies comment submission blocks password-protected posts.
+	 */
+	public function test_submit_comment_blocks_password_protected_post(): void {
+		$protected_id = self::factory()->post->create( [
+			'post_status'   => 'publish',
+			'post_password' => 'secret123',
+		] );
+
+		$user_id = self::factory()->user->create( [ 'role' => 'subscriber' ] );
+		wp_set_current_user( $user_id );
+
+		$result = $this->tools->execute_submit_comment( [
+			'post_id' => $protected_id,
+			'content' => 'Comment on protected post.',
+		] );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'not_found', $result->get_error_code() );
+
+		wp_delete_user( $user_id );
+		wp_delete_post( $protected_id, true );
+	}
+
+	/**
+	 * Verifies comment submission maps 'spam' approval status accurately.
+	 */
+	public function test_submit_comment_reports_spam_status(): void {
+		$user_id = self::factory()->user->create( [ 'role' => 'subscriber' ] );
+		wp_set_current_user( $user_id );
+
+		$spam_filter = static function () {
+			return 'spam';
+		};
+		add_filter( 'pre_comment_approved', $spam_filter );
+
+		$result = $this->tools->execute_submit_comment( [
+			'post_id' => $this->post_id,
+			'content' => 'Spammy test comment.',
+		] );
+
+		remove_filter( 'pre_comment_approved', $spam_filter );
+
+		$this->assertIsArray( $result );
+		$this->assertSame( 'spam', $result['status'] );
+
+		wp_delete_user( $user_id );
 	}
 
 	// -------------------------------------------------------------------------
