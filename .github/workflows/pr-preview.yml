@@ -1,0 +1,59 @@
+name: PR Preview
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  pull-requests: write
+
+concurrency:
+  group: playground-link-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    steps:
+      # Use only the trusted script below; never check out or execute PR code.
+      - name: Add Playground link to PR description
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const pull_number = context.issue.number;
+            const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number });
+            const blueprint = {
+              preferredVersions: { php: '8.3', wp: 'latest' },
+              landingPage: '/wp-admin/options-general.php?page=webmcp-abilities',
+              steps: [
+                {
+                  step: 'installPlugin',
+                  pluginData: {
+                    resource: 'git:directory',
+                    url: `https://github.com/${pr.head.repo.full_name}`,
+                    ref: pr.head.sha,
+                    refType: 'commit',
+                    path: '/',
+                  },
+                  options: { activate: true },
+                },
+                { step: 'login', username: 'admin' },
+              ],
+            };
+            const dataUrl = `data:application/json;base64,${Buffer.from(JSON.stringify(blueprint)).toString('base64')}`;
+            const playgroundUrl = `https://playground.wordpress.net/?blueprint-url=${encodeURIComponent(dataUrl)}`;
+            const section = [
+              '<!-- playground-link:start -->',
+              '## WordPress Playground',
+              '',
+              `[Try this PR](${playgroundUrl})`,
+              '<!-- playground-link:end -->',
+            ].join('\n');
+            // Replace both our section and the previous release-based preview block.
+            const existingSections = /<!-- (playground-link|wp-playground-preview):start -->[\s\S]*?<!-- \1:end -->/g;
+            const withoutSections = (pr.body || '').replace(existingSections, '').trimEnd();
+            const body = [withoutSections, section].filter(Boolean).join('\n\n');
+            if (body !== pr.body) {
+              await github.rest.pulls.update({ owner, repo, pull_number, body });
+            }
