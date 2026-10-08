@@ -1,0 +1,15 @@
+name: PR Preview - Publish
+
+on:
+  workflow_run:
+    workflows: ['PR Preview - Build']
+    types: [completed]
+
+jobs:
+  publish:
+    permissions:
+      contents: write
+      pull-requests: write
+    uses: WordPress/action-wp-playground-pr-preview/.github/workflows/preview-publish.yml@v4
+    with:
+      kind: plugin
