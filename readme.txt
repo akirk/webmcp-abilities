@@ -53,7 +53,7 @@ The WebMCP standard requires a secure context. The front-end bridge will not loa
 
 = For Plugin Developers =
 
-Any ability registered via `wp_register_ability()` automatically becomes a WebMCP tool. The site admin must enable it in **Settings → WebMCP** (third-party tools default to hidden on fresh installs).
+Any ability registered via `wp_register_ability()` automatically becomes a WebMCP tool for signed-in users as soon as its plugin is active. The site admin can hide any tool or open it to logged-out visitors in **Settings → WebMCP**.
 
 `
 // Register your category first (on the wp_abilities_api_categories_init hook).
@@ -105,7 +105,7 @@ An ability is advertised as soon as its plugin is active; there is no allowlist 
 
 = Do I need to configure anything? =
 
-Just enable the plugin on the Settings → WebMCP page. Four built-in tools work immediately. Third-party abilities appear in the settings panel but are hidden by default — check the box next to each tool you want to expose.
+The plugin is enabled out of the box and four built-in tools work immediately. Third-party abilities are automatically advertised to signed-in users whose permissions pass. On **Settings → WebMCP**, you can hide any tool with the eye icon or tick its checkbox to advertise it to logged-out visitors as well.
 
 = Is this safe? =
 
