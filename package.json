@@ -8,6 +8,7 @@
     "start": "wp-scripts start",
     "lint:js": "wp-scripts lint-js src/",
     "lint:ts": "tsc --noEmit",
+    "test:js": "node tests/js/admin-save-feedback.cjs",
     "format": "wp-scripts format src/"
   },
   "devDependencies": {

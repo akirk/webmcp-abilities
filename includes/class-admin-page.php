@@ -414,7 +414,6 @@ class Admin_Page {
 			'failed'    => __( 'Could not save that change. Please try again. If the problem continues, reload the page.', 'webmcp-abilities' ),
 			'custom'    => __( 'Custom', 'webmcp-abilities' ),
 			'default'   => __( 'Plugin default', 'webmcp-abilities' ),
-			'failed'    => __( 'Could not save that change. Reload the page and try again.', 'webmcp-abilities' ),
 		];
 		?>
 		<style>
