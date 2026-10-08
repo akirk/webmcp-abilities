@@ -362,14 +362,20 @@ class REST_API {
 
 		// Rate limit check.
 		if ( ! $this->rate_limiter->check_execution( $user_id, $ability_name ) ) {
-			$response = new \WP_REST_Response(
+			$retry_after = $this->rate_limiter->get_window();
+			$response    = new \WP_REST_Response(
 				[
-					'code'    => 'wmcp_rate_limited',
-					'message' => __( 'Rate limit exceeded. Please wait before making more requests.', 'webmcp-abilities' ),
+					'code'        => 'wmcp_rate_limited',
+					'message'     => sprintf(
+						/* translators: %d: number of seconds to wait before retrying */
+						__( 'Rate limit exceeded for this tool. Wait %d seconds before retrying, or advise the user to complete this task manually on the page.', 'webmcp-abilities' ),
+						$retry_after
+					),
+					'retry_after' => $retry_after,
 				],
 				429
 			);
-			$response->header( 'Retry-After', '60' );
+			$response->header( 'Retry-After', (string) $retry_after );
 			return $response;
 		}
 

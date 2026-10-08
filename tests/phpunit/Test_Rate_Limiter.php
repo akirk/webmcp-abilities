@@ -98,6 +98,37 @@ class Test_Rate_Limiter extends WP_UnitTestCase {
 		remove_all_filters( 'wmcp_rate_limit' );
 	}
 
+	/**
+	 * Verifies anonymous callers ($user_id = 0) do not share a global rate-limit bucket.
+	 */
+	public function test_anonymous_execution_is_not_rate_limited_globally(): void {
+		add_filter( 'wmcp_rate_limit', function () {
+			return 1;
+		} );
+		add_filter( 'wmcp_rate_limit_global_ceiling', function () {
+			return 1;
+		} );
+
+		$this->assertTrue( $this->limiter->check_execution( 0, 'test/public-tool' ) );
+		$this->assertTrue( $this->limiter->check_execution( 0, 'test/public-tool' ) );
+
+		remove_all_filters( 'wmcp_rate_limit' );
+		remove_all_filters( 'wmcp_rate_limit_global_ceiling' );
+	}
+
+	/**
+	 * Verifies wmcp_rate_limit_window filter customizes the rate limit window.
+	 */
+	public function test_rate_limit_window_filter_is_applied(): void {
+		add_filter( 'wmcp_rate_limit_window', function () {
+			return 120;
+		} );
+
+		$this->assertSame( 120, $this->limiter->get_window() );
+
+		remove_all_filters( 'wmcp_rate_limit_window' );
+	}
+
 	// -------------------------------------------------------------------------
 	// check_discovery()
 	// -------------------------------------------------------------------------
