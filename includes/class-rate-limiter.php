@@ -25,25 +25,33 @@ class Rate_Limiter {
 	const DISCOVERY_WINDOW = 60;
 
 	/**
-	 * Check and increment the execution rate limit for a user (or IP when anonymous).
+	 * Check and increment the execution rate limit for an authenticated user.
 	 * Returns true if the request is allowed, false if rate-limited.
+	 *
+	 * Anonymous callers ($user_id <= 0) are not rate-limited here: WebMCP tools
+	 * run in the visitor's browser, and keying on user ID 0 would make all
+	 * logged-out visitors share a single site-wide counter while IP bucketing
+	 * penalises visitors behind shared NATs or reverse proxies.
 	 *
 	 * @param int    $user_id      The executing user's ID (0 for anonymous).
 	 * @param string $ability_name The ability being executed.
-	 * @param string $ip           Optional client IP address for anonymous callers.
 	 */
-	public function check_execution( int $user_id, string $ability_name, string $ip = '' ): bool {
+	public function check_execution( int $user_id, string $ability_name ): bool {
+		if ( $user_id <= 0 ) {
+			return true;
+		}
+
 		/**
 		 * Filter the per-ability execution rate limit.
 		 *
-		 * @param int    $limit        Max executions per minute. Default 30.
+		 * @param int    $limit        Max executions per window. Default 30.
 		 * @param string $ability_name The ability name.
 		 * @param int    $user_id      The user ID.
 		 */
 		$limit = (int) apply_filters( 'wmcp_rate_limit', 30, $ability_name, $user_id );
 
 		/**
-		 * Hard ceiling on total executions per user per minute regardless of
+		 * Hard ceiling on total executions per user per window regardless of
 		 * per-ability overrides.
 		 *
 		 * @param int $ceiling Default 60.
@@ -52,12 +60,8 @@ class Rate_Limiter {
 
 		$window = $this->get_window( self::EXECUTION_WINDOW );
 
-		// Anonymous visitors share user_id 0, so bucket them by IP when available
-		// to prevent one visitor from exhausting the limit for every logged-out user.
-		$actor = ( 0 === $user_id && '' !== $ip ) ? 'ip_' . md5( $ip ) : (string) $user_id;
-
-		$per_ability_key = "exec_{$actor}_" . md5( $ability_name );
-		$global_key      = "exec_{$actor}_global";
+		$per_ability_key = "exec_{$user_id}_" . md5( $ability_name );
+		$global_key      = "exec_{$user_id}_global";
 
 		$per_ability_count = (int) wp_cache_get( $per_ability_key, self::CACHE_GROUP );
 		$global_count      = (int) wp_cache_get( $global_key, self::CACHE_GROUP );

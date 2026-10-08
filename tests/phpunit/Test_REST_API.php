@@ -264,15 +264,18 @@ class Test_REST_API extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Verifies execute returns 429 when rate limited.
+	 * Verifies execute returns 429 with Retry-After and manual recovery guidance when rate limited.
 	 */
 	public function test_execute_returns_429_when_rate_limited(): void {
-		// Set rate limit to 0 so everything is blocked.
+		// Set rate limit to 0 so everything is blocked, and customize window.
 		add_filter( 'wmcp_rate_limit', function () {
 			return 0;
 		} );
 		add_filter( 'wmcp_rate_limit_global_ceiling', function () {
 			return 0;
+		} );
+		add_filter( 'wmcp_rate_limit_window', function () {
+			return 90;
 		} );
 
 		$nonce = wp_create_nonce( 'wmcp_execute' );
@@ -285,8 +288,15 @@ class Test_REST_API extends WP_UnitTestCase {
 
 		remove_all_filters( 'wmcp_rate_limit' );
 		remove_all_filters( 'wmcp_rate_limit_global_ceiling' );
+		remove_all_filters( 'wmcp_rate_limit_window' );
 
 		$this->assertSame( 429, $response->get_status() );
+		$this->assertSame( '90', $response->get_headers()['Retry-After'] ?? null );
+
+		$data = $response->get_data();
+		$this->assertSame( 90, $data['retry_after'] ?? null );
+		$this->assertStringContainsString( '90 seconds', $data['message'] ?? '' );
+		$this->assertStringContainsString( 'manually', $data['message'] ?? '' );
 	}
 
 	/**

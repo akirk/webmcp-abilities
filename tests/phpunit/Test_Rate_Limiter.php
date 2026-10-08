@@ -99,20 +99,21 @@ class Test_Rate_Limiter extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Verifies anonymous execution limits are isolated per client IP.
+	 * Verifies anonymous callers ($user_id = 0) do not share a global rate-limit bucket.
 	 */
-	public function test_anonymous_execution_limits_are_per_ip(): void {
+	public function test_anonymous_execution_is_not_rate_limited_globally(): void {
 		add_filter( 'wmcp_rate_limit', function () {
 			return 1;
 		} );
+		add_filter( 'wmcp_rate_limit_global_ceiling', function () {
+			return 1;
+		} );
 
-		$this->assertTrue( $this->limiter->check_execution( 0, 'test/public-tool', '198.51.100.1' ) );
-		$this->assertFalse( $this->limiter->check_execution( 0, 'test/public-tool', '198.51.100.1' ) );
-
-		// A second anonymous visitor on a different IP should not be blocked.
-		$this->assertTrue( $this->limiter->check_execution( 0, 'test/public-tool', '198.51.100.2' ) );
+		$this->assertTrue( $this->limiter->check_execution( 0, 'test/public-tool' ) );
+		$this->assertTrue( $this->limiter->check_execution( 0, 'test/public-tool' ) );
 
 		remove_all_filters( 'wmcp_rate_limit' );
+		remove_all_filters( 'wmcp_rate_limit_global_ceiling' );
 	}
 
 	/**
